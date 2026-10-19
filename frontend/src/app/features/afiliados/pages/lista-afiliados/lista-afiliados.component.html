@@ -22,24 +22,24 @@
         <input id="search-affiliates" type="search" [formControl]="busqueda" placeholder="Buscar por identificación, nombre o email" />
       </label>
       @if (busqueda.value) { <button class="quiet-button" type="button" (click)="limpiarBusqueda()">Limpiar búsqueda</button> }
-      @if (pagina) { <span class="result-count">{{ pagina.page.totalElements }} resultados</span> }
+      @if (pagina()) { <span class="result-count">{{ pagina()!.page.totalElements }} resultados</span> }
     </section>
 
-    @if (error) {
-      <section class="state-message error-state" role="alert"><strong>No se pudo cargar la información</strong><p>{{ error }}</p><button class="quiet-button" type="button" (click)="cargar(pagina?.page?.number ?? 0)">Reintentar</button></section>
-    } @else if (cargando && !pagina) {
+    @if (error()) {
+      <section class="state-message error-state" role="alert"><strong>No se pudo cargar la información</strong><p>{{ error() }}</p><button class="quiet-button" type="button" (click)="cargar(pagina()?.page?.number ?? 0)">Reintentar</button></section>
+    } @else if (cargando() && !pagina()) {
       <div class="state-message" role="status"><span class="spinner"></span> Cargando afiliados…</div>
-    } @else if (pagina && pagina.content.length === 0) {
+    } @else if (pagina() && pagina()!.content.length === 0) {
       <section class="state-message empty-state">
         <h2>{{ busqueda.value ? 'No hay coincidencias' : 'Aún no hay afiliados registrados' }}</h2>
         <p>{{ busqueda.value ? 'Prueba con otra identificación, nombre o correo.' : 'Los nuevos registros aparecerán aquí.' }}</p>
       </section>
-    } @else if (pagina) {
+    } @else if (pagina()) {
       <div class="table-wrap">
         <table class="affiliate-table">
           <thead><tr><th>Identificación</th><th>Nombres</th><th>Apellidos</th><th>Celular</th><th>Email</th><th>Dirección</th><th>Mascotas</th><th>Acciones</th></tr></thead>
           <tbody>
-            @for (afiliado of pagina.content; track afiliado.id) {
+            @for (afiliado of pagina()!.content; track afiliado.id) {
               <tr>
                 <td data-label="Identificación" class="identifier">{{ afiliado.numeroIdentificacion }}</td>
                 <td data-label="Nombres">{{ afiliado.nombres }}</td>
@@ -60,10 +60,10 @@
       </div>
 
       <footer class="pagination-bar">
-        <span>Página {{ pagina.page.number + 1 }} de {{ pagina.page.totalPages || 1 }}</span>
+        <span>Página {{ pagina()!.page.number + 1 }} de {{ pagina()!.page.totalPages || 1 }}</span>
         <div class="pagination-actions">
-          <button class="quiet-button" type="button" [disabled]="pagina.page.number === 0 || cargando" (click)="cargar(pagina.page.number - 1)">Anterior</button>
-          <button class="quiet-button" type="button" [disabled]="pagina.page.number + 1 >= pagina.page.totalPages || cargando" (click)="cargar(pagina.page.number + 1)">Siguiente</button>
+          <button class="quiet-button" type="button" [disabled]="pagina()!.page.number === 0 || cargando()" (click)="cargar(pagina()!.page.number - 1)">Anterior</button>
+          <button class="quiet-button" type="button" [disabled]="pagina()!.page.number + 1 >= pagina()!.page.totalPages || cargando()" (click)="cargar(pagina()!.page.number + 1)">Siguiente</button>
         </div>
       </footer>
     }

@@ -1,0 +1,103 @@
+<main class="feature-page">
+  <div class="content">
+    <a class="back-link" routerLink="/afiliados">← Volver a afiliados</a>
+
+    @if (cargando) {
+      <p class="state-message" role="status">Cargando historial…</p>
+    } @else if (error && !afiliado) {
+      <section class="notice error-notice" role="alert">{{ error }}</section>
+    } @else if (afiliado) {
+      <header class="page-heading">
+        <p class="eyebrow"><span aria-hidden="true"></span> AFILIADOS <span class="eyebrow-divider">/</span> PRESTACIONES</p>
+        <h1>{{ afiliado.nombres }} {{ afiliado.apellidos }}</h1>
+        <p class="intro">Consultas y procedimientos realizados a sus mascotas.</p>
+      </header>
+      <app-afiliado-tabs [afiliadoId]="afiliadoId" />
+
+      @if (exito) {
+        <section class="notice success-notice" role="status">{{ exito }}</section>
+      }
+      @if (error) {
+        <section class="notice error-notice" role="alert">{{ error }}</section>
+      }
+
+      <section class="panel" aria-labelledby="history-heading">
+        <div class="section-heading">
+          <span class="section-index">01</span>
+          <div><h2 id="history-heading">Historial de prestaciones</h2><p>{{ prestaciones.length }} {{ prestaciones.length === 1 ? 'registro' : 'registros' }}, más recientes primero</p></div>
+          <button class="quiet-button" type="button" (click)="abrirFormulario()" [disabled]="mascotas.length === 0">+ Registrar prestación</button>
+        </div>
+
+        <label class="field filter-field" for="filtro-mascota">
+          <span>Filtrar por mascota</span>
+          <select id="filtro-mascota" [formControl]="filtroMascota">
+            <option [ngValue]="null">Todas las mascotas</option>
+            @for (mascota of mascotas; track mascota.id) {
+              <option [ngValue]="mascota.id">{{ mascota.nombre }}</option>
+            }
+          </select>
+        </label>
+
+        @if (mostrarFormulario) {
+          <form class="inner-form" [formGroup]="prestacionForm" (ngSubmit)="registrar()" novalidate aria-label="Registrar prestación">
+            <h3 class="subheading">Registrar prestación</h3>
+            @if (errorFormulario) {
+              <section class="notice error-notice" role="alert">{{ errorFormulario }}</section>
+            }
+            <div class="fields">
+              <label class="field" for="p-mascota"><span>Mascota</span>
+                <select id="p-mascota" formControlName="mascotaId">
+                  <option [ngValue]="null">Selecciona una mascota</option>
+                  @for (mascota of mascotas; track mascota.id) { <option [ngValue]="mascota.id">{{ mascota.nombre }}</option> }
+                </select>
+              </label>
+              <label class="field" for="p-servicio"><span>Servicio</span>
+                <select id="p-servicio" formControlName="servicioId">
+                  <option [ngValue]="null">Selecciona un servicio</option>
+                  @for (servicio of servicios; track servicio.id) { <option [ngValue]="servicio.id">{{ servicio.nombre }}</option> }
+                </select>
+              </label>
+              <label class="field" for="p-fecha"><span>Fecha</span><input id="p-fecha" type="date" [max]="hoy" formControlName="fecha" /></label>
+              <label class="field" for="p-prestador"><span>Prestador (clínica o veterinario)</span><input id="p-prestador" maxlength="150" formControlName="prestador" /></label>
+              <label class="field" for="p-bono"><span>Bono utilizado (opcional)</span>
+                <select id="p-bono" formControlName="bonoId">
+                  <option [ngValue]="null">{{ bonosAplicables.length ? 'Sin bono' : 'No hay bonos disponibles para esta selección' }}</option>
+                  @for (bono of bonosAplicables; track bono.id) { <option [ngValue]="bono.id">{{ bono.codigo }} · {{ formatearPesos(bono.valorPagado) }}</option> }
+                </select>
+              </label>
+              <label class="field field-wide" for="p-obs"><span>Observaciones</span><textarea id="p-obs" rows="3" maxlength="500" formControlName="observaciones"></textarea></label>
+            </div>
+            <div class="form-actions">
+              <button class="quiet-button" type="button" [disabled]="guardando" (click)="mostrarFormulario = false">Cancelar</button>
+              <button class="submit-button" type="submit" [disabled]="guardando">{{ guardando ? 'Guardando…' : 'Registrar prestación' }}</button>
+            </div>
+          </form>
+        }
+
+        @if (filtrando) {
+          <p class="state-message" role="status">Consultando…</p>
+        } @else if (prestaciones.length === 0) {
+          <p class="empty-state">No hay prestaciones registradas{{ filtroMascota.value === null ? '' : ' para esta mascota' }}.</p>
+        } @else {
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Fecha</th><th>Mascota</th><th>Servicio</th><th>Prestador</th><th>Bono</th><th>Observaciones</th></tr></thead>
+              <tbody>
+                @for (prestacion of prestaciones; track prestacion.id) {
+                  <tr>
+                    <td data-label="Fecha"><strong>{{ prestacion.fecha | date: 'dd/MM/yyyy' }}</strong></td>
+                    <td data-label="Mascota">{{ prestacion.mascotaNombre }}</td>
+                    <td data-label="Servicio">{{ prestacion.servicioNombre }} <small class="muted">{{ prestacion.tipoServicio === 'CONSULTA' ? 'Consulta' : 'Procedimiento' }}</small></td>
+                    <td data-label="Prestador">{{ prestacion.prestador }}</td>
+                    <td data-label="Bono">{{ prestacion.bonoCodigo ? prestacion.bonoCodigo + ' · ' + formatearPesos(prestacion.valorPagadoBono) : '—' }}</td>
+                    <td data-label="Observaciones">{{ prestacion.observaciones || '—' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </section>
+    }
+  </div>
+</main>

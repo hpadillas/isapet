@@ -78,6 +78,26 @@ public class GlobalExceptionHandler {
                 List.of()));
     }
 
+    @ExceptionHandler({
+            AfiliacionNotFoundException.class,
+            ServicioNotFoundException.class,
+            BonoNotFoundException.class
+    })
+    public ResponseEntity<ErrorResponse> handleAffiliationResourceNotFound(RuntimeException exception) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse(
+                HttpStatus.NOT_FOUND.value(),
+                exception.getMessage(),
+                List.of()));
+    }
+
+    @ExceptionHandler(BusinessRuleException.class)
+    public ResponseEntity<ErrorResponse> handleBusinessRule(BusinessRuleException exception) {
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(new ErrorResponse(
+                HttpStatus.UNPROCESSABLE_ENTITY.value(),
+                exception.getMessage(),
+                List.of()));
+    }
+
     @ExceptionHandler(DuplicateNumeroIdentificacionException.class)
     public ResponseEntity<ErrorResponse> handleDuplicate(DuplicateNumeroIdentificacionException exception) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse(

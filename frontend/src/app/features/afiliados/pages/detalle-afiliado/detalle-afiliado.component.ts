@@ -6,6 +6,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { forkJoin } from 'rxjs';
 import { AfiliadoDetalle, ApiErrorResponse, CrearMascotaRequest, CrearMascotaResponse, ESPECIES_MASCOTA } from '../../models/afiliado.models';
 import { AfiliadoApiService } from '../../services/afiliado-api.service';
+import { AfiliadoTabsComponent } from '../../components/afiliado-tabs/afiliado-tabs.component';
 
 const integerValidator: ValidatorFn = (control: AbstractControl): ValidationErrors | null =>
   control.value === null || Number.isInteger(control.value) ? null : { integer: true };
@@ -13,7 +14,7 @@ const integerValidator: ValidatorFn = (control: AbstractControl): ValidationErro
 @Component({
   selector: 'app-detalle-afiliado',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule, RouterLink, AfiliadoTabsComponent],
   templateUrl: './detalle-afiliado.component.html',
   styleUrl: './detalle-afiliado.component.scss'
 })

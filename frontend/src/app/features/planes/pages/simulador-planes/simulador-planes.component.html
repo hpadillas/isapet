@@ -1,0 +1,115 @@
+<main class="feature-page">
+  <div class="content">
+    <header class="page-heading">
+      <p class="eyebrow"><span aria-hidden="true"></span> PLANES <span class="eyebrow-divider">/</span> SIMULADOR</p>
+      <h1>Simula tu plan</h1>
+      <p class="intro">Compara los planes vigentes según cuántas mascotas quieres afiliar y qué servicios esperas usar al mes.</p>
+    </header>
+
+    @if (error) {
+      <section class="notice error-notice" role="alert">{{ error }}</section>
+    }
+
+    <div class="simulator-layout">
+      <form class="panel" [formGroup]="form" (ngSubmit)="simular()" novalidate>
+        <div class="section-heading">
+          <span class="section-index">01</span>
+          <div><h2>Tus necesidades</h2><p>Valores estimados por mes.</p></div>
+        </div>
+
+        <label class="field" for="pet-count">
+          <span>Mascotas a afiliar</span>
+          <input id="pet-count" type="number" min="1" max="20" step="1" [formControl]="cantidadMascotas"
+                 [attr.aria-invalid]="cantidadMascotas.invalid && cantidadMascotas.touched" />
+        </label>
+
+        @if (cargandoServicios) {
+          <p class="state-message" role="status">Cargando servicios…</p>
+        } @else {
+          <fieldset class="service-list">
+            <legend>Servicios que esperas usar al mes</legend>
+            @for (servicio of servicios; track servicio.id) {
+              <label class="service-row" [for]="'service-' + servicio.id">
+                <span>
+                  <strong>{{ servicio.nombre }}</strong>
+                  <small>{{ servicio.tipo === 'CONSULTA' ? 'Consulta' : 'Procedimiento' }} · {{ formatearPesos(servicio.valorBase) }}</small>
+                </span>
+                <input [id]="'service-' + servicio.id" type="number" min="0" max="30" step="1" [formControl]="control(servicio)" />
+              </label>
+            }
+          </fieldset>
+        }
+
+        <div class="form-actions">
+          <button class="submit-button" type="submit" [disabled]="simulando || cargandoServicios">
+            {{ simulando ? 'Calculando…' : 'Simular planes' }}
+          </button>
+        </div>
+      </form>
+
+      <section class="results" aria-labelledby="results-heading" aria-live="polite">
+        <div class="section-heading">
+          <span class="section-index">02</span>
+          <div>
+            <h2 id="results-heading">Comparación de planes</h2>
+            @if (resultado) {
+              <p>Condiciones vigentes al {{ resultado.fechaReferencia }} para {{ resultado.cantidadMascotas }} {{ resultado.cantidadMascotas === 1 ? 'mascota' : 'mascotas' }}.</p>
+            }
+          </div>
+        </div>
+
+        @if (resultado && resultado.opciones.length === 0) {
+          <p class="empty-state">No hay planes activos con condiciones vigentes para simular.</p>
+        }
+
+        <div class="option-list">
+          @for (opcion of resultado?.opciones ?? []; track opcion.planId) {
+            <article class="option-card" [class.recommended]="opcion.recomendado" [class.unavailable]="!opcion.aplica">
+              <div class="option-heading">
+                <div><h3>{{ opcion.nombre }}</h3><p class="muted">{{ formatearPesos(opcion.precioMensual) }} / mes</p></div>
+                @if (opcion.recomendado) {
+                  <span class="badge badge-good">Recomendado</span>
+                } @else if (!opcion.aplica) {
+                  <span class="badge badge-muted">No aplica</span>
+                }
+              </div>
+
+              @if (!opcion.aplica) {
+                <p class="option-warning">{{ opcion.motivoNoAplica }}</p>
+              }
+
+              <p class="estimate">{{ formatearPesos(opcion.valorMensualEstimado) }} <span>estimado al mes</span></p>
+              <dl class="facts">
+                <div><dt>Mascotas</dt><dd>Hasta {{ opcion.maximoMascotas }}</dd></div>
+                <div><dt>Atenciones con descuento</dt><dd>{{ opcion.atencionesIlimitadas ? 'Ilimitadas' : opcion.limiteAtenciones + ' / mes' }}</dd></div>
+                <div><dt>Servicios con plan</dt><dd>{{ formatearPesos(opcion.costoServiciosConPlan) }}</dd></div>
+                <div><dt>Servicios sin plan</dt><dd>{{ formatearPesos(opcion.costoServiciosSinPlan) }}</dd></div>
+              </dl>
+              <p class="saving" [class.negative]="opcion.ahorroMensualEstimado < 0">
+                @if (opcion.ahorroMensualEstimado >= 0) {
+                  Ahorras {{ formatearPesos(opcion.ahorroMensualEstimado) }} al mes frente a pagar los servicios sin plan.
+                } @else {
+                  Con este uso pagarías {{ formatearPesos(-opcion.ahorroMensualEstimado) }} más que sin plan.
+                }
+              </p>
+
+              <details>
+                <summary>Beneficios del plan</summary>
+                @if (beneficiosConDescuento(opcion).length === 0) {
+                  <p class="muted">Este plan no tiene descuentos configurados en servicios.</p>
+                } @else {
+                  <ul class="benefit-list">
+                    @for (beneficio of beneficiosConDescuento(opcion); track beneficio.servicioId) {
+                      <li><span>{{ beneficio.nombre }}</span><strong>-{{ beneficio.porcentajeDescuento }}% · {{ formatearPesos(beneficio.valorConPlan) }}</strong></li>
+                    }
+                  </ul>
+                }
+              </details>
+            </article>
+          }
+        </div>
+        <p class="footnote">Valores estimados con la versión comercial vigente. Las atenciones por encima del límite mensual se calculan a valor pleno.</p>
+      </section>
+    </div>
+  </div>
+</main>

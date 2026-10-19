@@ -1,0 +1,113 @@
+<main class="feature-page">
+  <div class="content">
+    <a class="back-link" routerLink="/afiliados">← Volver a afiliados</a>
+
+    @if (cargando) {
+      <p class="state-message" role="status">Cargando plan…</p>
+    } @else if (error) {
+      <section class="notice error-notice" role="alert">{{ error }}</section>
+    } @else if (afiliado) {
+      <header class="page-heading">
+        <p class="eyebrow"><span aria-hidden="true"></span> AFILIADOS <span class="eyebrow-divider">/</span> PLAN</p>
+        <h1>{{ afiliado.nombres }} {{ afiliado.apellidos }}</h1>
+        <p class="intro">Identificación {{ afiliado.numeroIdentificacion }}</p>
+      </header>
+      <app-afiliado-tabs [afiliadoId]="afiliadoId" />
+
+      @if (exito) {
+        <section class="notice success-notice" role="status">{{ exito }}</section>
+      }
+
+      @if (plan && !editando) {
+        <section class="panel" aria-labelledby="plan-heading">
+          <div class="section-heading">
+            <span class="section-index">01</span>
+            <div>
+              <h2 id="plan-heading">Plan {{ plan.nombre }} <span class="badge" [class.badge-muted]="!plan.planActivo" [class.badge-good]="plan.planActivo">{{ plan.planActivo ? 'Activo' : 'Plan descontinuado' }}</span></h2>
+              <p>Afiliado desde {{ plan.fechaInicio }} · condiciones vigentes desde {{ plan.versionVigenteDesde }}</p>
+            </div>
+            <button class="quiet-button" type="button" (click)="cambiarPlan()">Cambiar plan o mascotas</button>
+          </div>
+
+          <dl class="facts facts-wide">
+            <div><dt>Valor mensual</dt><dd>{{ formatearPesos(plan.precioMensual) }}</dd></div>
+            <div><dt>Mascotas cubiertas</dt><dd>{{ plan.mascotasCubiertas.length }} de {{ plan.maximoMascotas }}</dd></div>
+            <div><dt>Atenciones con descuento</dt><dd>{{ plan.atencionesIlimitadas ? 'Ilimitadas' : plan.limiteAtenciones + ' por mes' }}</dd></div>
+            <div><dt>Uso este mes</dt><dd>{{ plan.bonosCompradosMes }} {{ plan.bonosCompradosMes === 1 ? 'bono' : 'bonos' }}{{ plan.bonosDisponiblesMes === null ? '' : ' · ' + plan.bonosDisponiblesMes + ' disponibles' }}</dd></div>
+          </dl>
+
+          <h3 class="subheading">Mascotas cubiertas</h3>
+          <ul class="chip-list">
+            @for (mascota of plan.mascotasCubiertas; track mascota.id) {
+              <li>{{ mascota.nombre }} <small>{{ mascota.especie }}</small></li>
+            }
+          </ul>
+
+          <h3 class="subheading">Beneficios en servicios</h3>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Servicio</th><th>Tipo</th><th>Valor sin plan</th><th>Descuento</th><th>Valor con plan</th></tr></thead>
+              <tbody>
+                @for (beneficio of plan.beneficios; track beneficio.servicioId) {
+                  <tr>
+                    <td data-label="Servicio">{{ beneficio.nombre }}</td>
+                    <td data-label="Tipo">{{ beneficio.tipo === 'CONSULTA' ? 'Consulta' : 'Procedimiento' }}</td>
+                    <td data-label="Valor sin plan">{{ formatearPesos(beneficio.valorBase) }}</td>
+                    <td data-label="Descuento">{{ beneficio.porcentajeDescuento ? beneficio.porcentajeDescuento + '%' : 'Sin descuento' }}</td>
+                    <td data-label="Valor con plan"><strong>{{ formatearPesos(beneficio.valorConPlan) }}</strong></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+      } @else {
+        <form class="panel" [formGroup]="form" (ngSubmit)="guardar()" novalidate aria-labelledby="assign-heading">
+          <div class="section-heading">
+            <span class="section-index">{{ plan ? '✎' : '01' }}</span>
+            <div>
+              <h2 id="assign-heading">{{ plan ? 'Cambiar plan' : 'Asignar plan' }}</h2>
+              <p>{{ plan ? 'Si eliges otro plan, la fecha de afiliación se reinicia hoy.' : 'Este afiliado aún no tiene un plan de afiliación.' }}</p>
+            </div>
+          </div>
+
+          @if (errorFormulario) {
+            <section class="notice error-notice" role="alert">{{ errorFormulario }}</section>
+          }
+
+          @if (mascotas.length === 0) {
+            <p class="empty-state">Registra al menos una mascota antes de asignar un plan. <a [routerLink]="['/afiliados', afiliadoId]">Ir a mascotas</a></p>
+          } @else {
+            <label class="field" for="plan-select">
+              <span>Plan</span>
+              <select id="plan-select" [formControl]="planControl">
+                <option [ngValue]="null">Selecciona un plan</option>
+                @for (candidato of planes; track candidato.id) {
+                  @let version = candidato.versiones[candidato.versiones.length - 1];
+                  <option [ngValue]="candidato.id">{{ candidato.nombre }} · {{ formatearPesos(version.precioMensual) }}/mes · hasta {{ version.maximoMascotas }} {{ version.maximoMascotas === 1 ? 'mascota' : 'mascotas' }}</option>
+                }
+              </select>
+            </label>
+
+            <fieldset class="check-list">
+              <legend>Mascotas cubiertas @if (maximoMascotasElegido) { <small>(máximo {{ maximoMascotasElegido }})</small> }</legend>
+              @for (mascota of mascotas; track mascota.id) {
+                <label class="check-row">
+                  <input type="checkbox" [checked]="mascotasSeleccionadas.has(mascota.id)" (change)="alternarMascota(mascota.id, $any($event.target).checked)" />
+                  <span>{{ mascota.nombre }} <small>{{ mascota.especie }} · {{ mascota.raza }}</small></span>
+                </label>
+              }
+            </fieldset>
+
+            <div class="form-actions">
+              @if (plan) {
+                <button class="quiet-button" type="button" [disabled]="guardando" (click)="cancelar()">Cancelar</button>
+              }
+              <button class="submit-button" type="submit" [disabled]="guardando">{{ guardando ? 'Guardando…' : 'Guardar plan' }}</button>
+            </div>
+          }
+        </form>
+      }
+    }
+  </div>
+</main>

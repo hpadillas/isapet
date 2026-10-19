@@ -13,6 +13,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
+import com.isapet.mapper.MascotaMapper;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
@@ -32,6 +34,9 @@ class MascotaServiceTest {
 
     @Mock
     private MascotaRepository mascotaRepository;
+
+    @Spy
+    private MascotaMapper mascotaMapper = new MascotaMapper();
 
     @InjectMocks
     private MascotaService mascotaService;

@@ -6,6 +6,7 @@ import com.isapet.entity.Afiliado;
 import com.isapet.entity.Mascota;
 import com.isapet.exception.AfiliadoNotFoundException;
 import com.isapet.exception.MascotaNotFoundException;
+import com.isapet.mapper.MascotaMapper;
 import com.isapet.repository.AfiliadoRepository;
 import com.isapet.repository.MascotaRepository;
 import org.springframework.stereotype.Service;
@@ -18,10 +19,12 @@ public class MascotaService {
 
     private final AfiliadoRepository afiliadoRepository;
     private final MascotaRepository mascotaRepository;
+    private final MascotaMapper mascotaMapper;
 
-    public MascotaService(AfiliadoRepository afiliadoRepository, MascotaRepository mascotaRepository) {
+    public MascotaService(AfiliadoRepository afiliadoRepository, MascotaRepository mascotaRepository, MascotaMapper mascotaMapper) {
         this.afiliadoRepository = afiliadoRepository;
         this.mascotaRepository = mascotaRepository;
+        this.mascotaMapper = mascotaMapper;
     }
 
     @Transactional(readOnly = true)
@@ -30,7 +33,7 @@ public class MascotaService {
             throw new AfiliadoNotFoundException(afiliadoId);
         }
         return mascotaRepository.findAllByAfiliadoIdOrderByIdAsc(afiliadoId).stream()
-                .map(this::response)
+                .map(mascotaMapper::toResponse)
                 .toList();
     }
 
@@ -39,7 +42,7 @@ public class MascotaService {
         Mascota mascota = mascotaRepository.findById(mascotaId)
                 .orElseThrow(() -> new MascotaNotFoundException(mascotaId));
         mascota.actualizarDatos(request.nombre(), request.especie(), request.raza(), request.edad(), request.color());
-        return response(mascota);
+        return mascotaMapper.toResponse(mascota);
     }
 
     @Transactional
@@ -54,15 +57,9 @@ public class MascotaService {
         Afiliado afiliado = afiliadoRepository.findById(afiliadoId)
                 .orElseThrow(() -> new AfiliadoNotFoundException(afiliadoId));
 
-        Mascota mascota = mascotaRepository.save(new Mascota(
-                request.nombre(), request.especie(), request.raza(), request.edad(), request.color(), afiliado));
+        Mascota mascota = mascotaMapper.toEntity(request, afiliado);
+        Mascota guardada = mascotaRepository.save(mascota);
 
-        return response(mascota);
-        }
-
-        private CrearMascotaResponse response(Mascota mascota) {
-        return new CrearMascotaResponse(
-            mascota.getId(), mascota.getAfiliado().getId(), mascota.getNombre(),
-            mascota.getEspecie(), mascota.getRaza(), mascota.getEdad(), mascota.getColor());
+        return mascotaMapper.toResponse(guardada);
     }
 }

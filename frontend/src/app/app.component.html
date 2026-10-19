@@ -7,13 +7,18 @@
   @if (auth.session$ | async; as session) {
     <nav class="session-actions" aria-label="Navegación principal">
       <span class="session-user">{{ session.username }}</span>
+      <a class="login-link" routerLink="/simulador">Simular plan</a>
       @if (session.roles.includes('ADMIN')) {
+        <a class="login-link" routerLink="/afiliados">Afiliados</a>
         <a class="login-link" routerLink="/planes">Administrar planes</a>
       }
       <button class="logout-button" type="button" (click)="logout()">Cerrar sesión</button>
     </nav>
   } @else {
-    <a class="login-link" routerLink="/login">Iniciar sesión</a>
+    <nav class="session-actions" aria-label="Navegación pública">
+      <a class="login-link" routerLink="/simulador">Simular plan</a>
+      <a class="login-link" routerLink="/login">Iniciar sesión</a>
+    </nav>
   }
 </header>
 

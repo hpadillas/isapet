@@ -1,0 +1,11 @@
+# Perfil usado dentro de Docker Compose. Las credenciales llegan por variables de entorno
+# (DB_URL, DB_USERNAME, DB_PASSWORD) definidas en docker-compose.yml y .env.
+server:
+  # Nginx publica la aplicación y reenvía la petición al backend; con esto Spring usa el
+  # host y el esquema originales (X-Forwarded-*) al validar CORS/CSRF y generar URLs.
+  forward-headers-strategy: framework
+  shutdown: graceful
+
+spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 20s

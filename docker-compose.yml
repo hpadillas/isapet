@@ -1,16 +1,104 @@
+name: isapet
+
+# Uso: cp .env.example .env  (editar valores)  y luego  docker compose up --build
+# La aplicación queda en http://localhost:${APP_PORT} (por defecto 8080).
+
 services:
   postgres:
     image: postgres:16-alpine
     container_name: isapet-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: isapet
-      POSTGRES_USER: isapet
-      POSTGRES_PASSWORD: isapet
+      POSTGRES_DB: ${POSTGRES_DB:-isapet}
+      POSTGRES_USER: ${POSTGRES_USER:-isapet}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en el archivo .env}
+    # Solo en la interfaz local del anfitrión (no en la red), para herramientas de BD y para
+    # las pruebas del backend ejecutadas fuera de Docker. El backend usa la red interna.
     ports:
-      - "5433:5432"
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5433}:5432"
     volumes:
       - isapet-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - isapet-net
+
+  backend:
+    build:
+      context: ./backend
+    image: isapet-backend:local
+    container_name: isapet-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+      SERVER_PORT: 8080
+      # Conexión por nombre de servicio y puerto interno de la red de Docker.
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-isapet}
+      DB_USERNAME: ${POSTGRES_USER:-isapet}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en el archivo .env}
+      SESSION_TIMEOUT: ${SESSION_TIMEOUT:-30m}
+      # Seguro por defecto; para la demo local por HTTP .env.example lo deja en false.
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-true}
+      SESSION_COOKIE_SAME_SITE: ${SESSION_COOKIE_SAME_SITE:-Lax}
+      # Vacío: el navegador llega por Nginx en el mismo origen y no se necesita CORS.
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-}
+      # Crea el primer ADMIN solo si aún no existe ninguno; nunca modifica uno existente.
+      BOOTSTRAP_ADMIN_ENABLED: ${BOOTSTRAP_ADMIN_ENABLED:-true}
+      BOOTSTRAP_ADMIN_USERNAME: ${ADMIN_USERNAME:?Define ADMIN_USERNAME en el archivo .env}
+      BOOTSTRAP_ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Define ADMIN_PASSWORD en el archivo .env}
+      JAVA_OPTS: ${JAVA_OPTS:--XX:MaxRAMPercentage=75}
+    expose:
+      - "8080"
+    networks:
+      - isapet-net
+
+  frontend:
+    build:
+      context: ./frontend
+    image: isapet-frontend:local
+    container_name: isapet-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      BACKEND_URL: http://backend:8080
+    ports:
+      - "${APP_PORT:-8080}:80"
+    networks:
+      - isapet-net
+
+  # Pruebas automatizadas del backend contra el PostgreSQL del stack, sin Java ni Maven en el
+  # anfitrión. No arranca con "up"; se ejecuta con:
+  #   docker compose --profile tests run --rm backend-tests
+  backend-tests:
+    image: maven:3.9.9-eclipse-temurin-17
+    profiles: ["tests"]
+    working_dir: /workspace
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-isapet}
+      DB_USERNAME: ${POSTGRES_USER:-isapet}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en el archivo .env}
+    volumes:
+      - ./backend:/workspace
+      - isapet-maven-cache:/root/.m2
+    command: ["mvn", "-B", "test"]
+    networks:
+      - isapet-net
 
 volumes:
   isapet-postgres-data:
+  isapet-maven-cache:
+
+networks:
+  isapet-net:
+    name: isapet-net

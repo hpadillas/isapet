@@ -3,6 +3,7 @@ package com.isapet.repository;
 import com.isapet.entity.Afiliado;
 import com.isapet.entity.Mascota;
 import com.isapet.service.MascotaService;
+import com.isapet.mapper.MascotaMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
@@ -71,7 +72,7 @@ class PersistenciaF01Test {
         Long mascotaEliminadaId = mascotaEliminada.getId();
         Long mascotaConservadaId = mascotaConservada.getId();
 
-        new MascotaService(afiliadoRepository, mascotaRepository).eliminar(mascotaEliminadaId);
+        new MascotaService(afiliadoRepository, mascotaRepository, new MascotaMapper()).eliminar(mascotaEliminadaId);
         mascotaRepository.flush();
 
         assertThat(mascotaRepository.findById(mascotaEliminadaId)).isEmpty();

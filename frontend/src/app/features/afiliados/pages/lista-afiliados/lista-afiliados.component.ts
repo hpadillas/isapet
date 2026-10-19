@@ -3,8 +3,7 @@ import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { debounceTime, distinctUntilChanged } from 'rxjs';
-import { AfiliadoListaItem, Pagina } from '../../models/afiliado.models';
-import { AfiliadoApiService } from '../../services/afiliado-api.service';
+import { AfiliadosStore } from '../../services/afiliados.store';
 
 @Component({
   selector: 'app-lista-afiliados',
@@ -14,14 +13,13 @@ import { AfiliadoApiService } from '../../services/afiliado-api.service';
   styleUrl: './lista-afiliados.component.scss'
 })
 export class ListaAfiliadosComponent implements OnInit {
-  private readonly api = inject(AfiliadoApiService);
+  private readonly store = inject(AfiliadosStore);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly busqueda = new FormControl('', { nonNullable: true });
-  pagina: Pagina<AfiliadoListaItem> | null = null;
-  cargando = false;
-  error = '';
-  readonly size = 10;
+  readonly pagina = this.store.pagina;
+  readonly cargando = this.store.loading;
+  readonly error = this.store.error;
 
   ngOnInit(): void {
     this.busqueda.valueChanges.pipe(
@@ -33,18 +31,7 @@ export class ListaAfiliadosComponent implements OnInit {
   }
 
   cargar(page: number): void {
-    this.cargando = true;
-    this.error = '';
-    this.api.listarAfiliados(this.busqueda.value, page, this.size).subscribe({
-      next: pagina => {
-        this.pagina = pagina;
-        this.cargando = false;
-      },
-      error: () => {
-        this.error = 'No se pudo cargar la lista de afiliados. Inténtalo nuevamente.';
-        this.cargando = false;
-      }
-    });
+    this.store.cargarAfiliados(this.busqueda.value, page);
   }
 
   limpiarBusqueda(): void {

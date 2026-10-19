@@ -111,7 +111,8 @@
 
     @if (cargandoDetalle) {
       <p class="state-message" role="status">Cargando detalle e historial…</p>
-    } @else if (planSeleccionado; as plan) {
+    } @else if (planSeleccionado) {
+      @let plan = planSeleccionado;
       <section class="detail-section" aria-labelledby="detail-heading">
         <div class="section-heading detail-heading">
           <span class="section-index">03</span>

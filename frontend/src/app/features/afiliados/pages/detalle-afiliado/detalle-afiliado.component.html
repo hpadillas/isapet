@@ -17,6 +17,7 @@
           <a class="primary-button" [routerLink]="['/afiliados', afiliado.id, 'editar']">Editar afiliado</a>
         </div>
       </div>
+      <app-afiliado-tabs [afiliadoId]="afiliado.id" />
 
       @if (exito) { <section class="notice success-notice" role="status">{{ exito }}</section> }
 

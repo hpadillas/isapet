@@ -8,6 +8,7 @@ import com.isapet.dto.AfiliadoListaResponse;
 import com.isapet.entity.Afiliado;
 import com.isapet.exception.AfiliadoNotFoundException;
 import com.isapet.exception.DuplicateNumeroIdentificacionException;
+import com.isapet.mapper.AfiliadoMapper;
 import com.isapet.repository.AfiliadoRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -18,9 +19,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class AfiliadoService {
 
     private final AfiliadoRepository afiliadoRepository;
+    private final AfiliadoMapper afiliadoMapper;
 
-    public AfiliadoService(AfiliadoRepository afiliadoRepository) {
+    public AfiliadoService(AfiliadoRepository afiliadoRepository, AfiliadoMapper afiliadoMapper) {
         this.afiliadoRepository = afiliadoRepository;
+        this.afiliadoMapper = afiliadoMapper;
     }
 
     @Transactional(readOnly = true)
@@ -33,7 +36,7 @@ public class AfiliadoService {
     public AfiliadoDetalleResponse obtener(Long afiliadoId) {
         Afiliado afiliado = afiliadoRepository.findById(afiliadoId)
                 .orElseThrow(() -> new AfiliadoNotFoundException(afiliadoId));
-        return detalle(afiliado);
+        return afiliadoMapper.toDetalleResponse(afiliado);
     }
 
     @Transactional
@@ -42,7 +45,7 @@ public class AfiliadoService {
                 .orElseThrow(() -> new AfiliadoNotFoundException(afiliadoId));
         afiliado.actualizarDatosContacto(
                 request.nombres(), request.apellidos(), request.celular(), request.correo(), request.direccion());
-        return detalle(afiliado);
+        return afiliadoMapper.toDetalleResponse(afiliado);
     }
 
     @Transactional
@@ -51,27 +54,9 @@ public class AfiliadoService {
             throw new DuplicateNumeroIdentificacionException(request.numeroIdentificacion());
         }
 
-        Afiliado afiliado = afiliadoRepository.save(new Afiliado(
-                request.numeroIdentificacion(),
-                request.nombres(),
-            request.apellidos(),
-            request.celular(),
-            request.correo(),
-            request.direccion()));
+        Afiliado afiliado = afiliadoMapper.toEntity(request);
+        Afiliado guardado = afiliadoRepository.save(afiliado);
 
-        return new CrearAfiliadoResponse(
-            afiliado.getId(),
-            afiliado.getNumeroIdentificacion(),
-            afiliado.getNombres(),
-            afiliado.getApellidos(),
-            afiliado.getCelular(),
-            afiliado.getCorreo(),
-            afiliado.getDireccion());
-    }
-
-    private AfiliadoDetalleResponse detalle(Afiliado afiliado) {
-        return new AfiliadoDetalleResponse(
-                afiliado.getId(), afiliado.getNumeroIdentificacion(), afiliado.getNombres(),
-                afiliado.getApellidos(), afiliado.getCelular(), afiliado.getCorreo(), afiliado.getDireccion());
+        return afiliadoMapper.toCrearResponse(guardado);
     }
 }

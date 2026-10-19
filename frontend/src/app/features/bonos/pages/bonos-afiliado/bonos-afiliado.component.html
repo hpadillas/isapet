@@ -1,0 +1,110 @@
+<main class="feature-page">
+  <div class="content">
+    <a class="back-link" routerLink="/afiliados">← Volver a afiliados</a>
+
+    @if (cargando) {
+      <p class="state-message" role="status">Cargando bonos…</p>
+    } @else if (error) {
+      <section class="notice error-notice" role="alert">{{ error }}</section>
+    } @else if (afiliado) {
+      <header class="page-heading">
+        <p class="eyebrow"><span aria-hidden="true"></span> AFILIADOS <span class="eyebrow-divider">/</span> BONOS</p>
+        <h1>{{ afiliado.nombres }} {{ afiliado.apellidos }}</h1>
+        <p class="intro">Bonos para consultas y procedimientos con el descuento del plan.</p>
+      </header>
+      <app-afiliado-tabs [afiliadoId]="afiliadoId" />
+
+      @if (exito) {
+        <section class="notice success-notice" role="status">{{ exito }}</section>
+      }
+
+      @if (!plan) {
+        <section class="panel">
+          <p class="empty-state">El afiliado no tiene un plan asignado, por lo que no es elegible para comprar bonos.
+            <a [routerLink]="['/afiliados', afiliadoId, 'plan']">Asignar plan</a></p>
+        </section>
+      } @else {
+        <form class="panel" (ngSubmit)="comprar()" [formGroup]="compraForm" novalidate aria-labelledby="buy-heading">
+          <div class="section-heading">
+            <span class="section-index">01</span>
+            <div>
+              <h2 id="buy-heading">Comprar bono</h2>
+              <p>Plan {{ plan.nombre }} ·
+                {{ plan.atencionesIlimitadas ? 'atenciones ilimitadas' : plan.bonosDisponiblesMes + ' de ' + plan.limiteAtenciones + ' bonos disponibles este mes' }}</p>
+            </div>
+          </div>
+
+          <div class="fields">
+            <label class="field" for="bono-mascota">
+              <span>Mascota cubierta</span>
+              <select id="bono-mascota" formControlName="mascotaId">
+                <option [ngValue]="null">Selecciona una mascota</option>
+                @for (mascota of plan.mascotasCubiertas; track mascota.id) {
+                  <option [ngValue]="mascota.id">{{ mascota.nombre }} ({{ mascota.especie }})</option>
+                }
+              </select>
+            </label>
+            <label class="field" for="bono-servicio">
+              <span>Servicio</span>
+              <select id="bono-servicio" formControlName="servicioId">
+                <option [ngValue]="null">Selecciona un servicio</option>
+                @for (servicio of servicios; track servicio.id) {
+                  <option [ngValue]="servicio.id">{{ servicio.nombre }}</option>
+                }
+              </select>
+            </label>
+          </div>
+
+          @if (cotizando) {
+            <p class="state-message" role="status">Calculando valor…</p>
+          }
+          @if (errorCompra) {
+            <section class="notice error-notice" role="alert">{{ errorCompra }}</section>
+          }
+          @if (cotizacion) {
+            <dl class="quote" aria-live="polite">
+              <div><dt>Valor del servicio</dt><dd>{{ formatearPesos(cotizacion.valorBase) }}</dd></div>
+              <div><dt>Descuento plan {{ cotizacion.planCodigo }}</dt><dd>{{ cotizacion.porcentajeDescuento }}% · -{{ formatearPesos(cotizacion.ahorro) }}</dd></div>
+              <div class="quote-total"><dt>Valor a pagar</dt><dd>{{ formatearPesos(cotizacion.valorAPagar) }}</dd></div>
+            </dl>
+          }
+
+          <div class="form-actions">
+            <button class="submit-button" type="submit" [disabled]="comprando || !cotizacion">
+              {{ comprando ? 'Comprando…' : cotizacion ? 'Comprar por ' + formatearPesos(cotizacion.valorAPagar) : 'Comprar bono' }}
+            </button>
+          </div>
+        </form>
+      }
+
+      <section class="panel" aria-labelledby="bonos-heading">
+        <div class="section-heading">
+          <span class="section-index">02</span>
+          <div><h2 id="bonos-heading">Bonos comprados</h2><p>{{ bonos.length }} en total</p></div>
+        </div>
+        @if (bonos.length === 0) {
+          <p class="empty-state">Aún no se han comprado bonos.</p>
+        } @else {
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Código</th><th>Fecha</th><th>Mascota</th><th>Servicio</th><th>Descuento</th><th>Pagado</th><th>Estado</th></tr></thead>
+              <tbody>
+                @for (bono of bonos; track bono.id) {
+                  <tr>
+                    <td data-label="Código"><strong>{{ bono.codigo }}</strong></td>
+                    <td data-label="Fecha">{{ bono.fechaCompra | date: 'dd/MM/yyyy HH:mm' }}</td>
+                    <td data-label="Mascota">{{ bono.mascotaNombre }}</td>
+                    <td data-label="Servicio">{{ bono.servicioNombre }}</td>
+                    <td data-label="Descuento">{{ bono.porcentajeDescuento }}%</td>
+                    <td data-label="Pagado">{{ formatearPesos(bono.valorPagado) }}</td>
+                    <td data-label="Estado"><span class="badge" [class.badge-good]="bono.estado === 'DISPONIBLE'" [class.badge-muted]="bono.estado === 'USADO'">{{ bono.estado === 'DISPONIBLE' ? 'Disponible' : 'Usado' }}</span></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </section>
+    }
+  </div>
+</main>

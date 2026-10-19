@@ -116,7 +116,9 @@ public class SecurityConfiguration {
                 .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf
                         .csrfTokenRepository(csrfTokenRepository)
-                        .csrfTokenRequestHandler(csrfTokenRequestHandler))
+                        .csrfTokenRequestHandler(csrfTokenRequestHandler)
+                        // La simulación es pública, sin sesión ni efectos sobre datos: CSRF no aporta protección.
+                        .ignoringRequestMatchers("/api/v1/simulaciones/**"))
                 .securityContext(context -> context
                         .securityContextRepository(securityContextRepository))
                 .sessionManagement(session -> session
@@ -129,6 +131,7 @@ public class SecurityConfiguration {
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers("/api/v1/auth/csrf", "/api/v1/auth/login").permitAll()
                         .requestMatchers("/api/v1/auth/session", "/api/v1/auth/logout").authenticated()
+                        .requestMatchers("/api/v1/simulaciones/**").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/afiliados/**", "/api/v1/mascotas/**").hasRole("ADMIN")
                         .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
