@@ -1,5 +1,10 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, inject } from '@angular/core';
+import { NOMBRE_PERSONA, SOLO_NUMEROS, SOLO_PALABRAS } from '../../../../core/validation/campos';
+import { PermitirCaracteresDirective } from '../../../../core/validation/permitir-caracteres.directive';
+import { Component, inject, OnInit } from '@angular/core';
+import { RouterLink } from '@angular/router';
+import { PoliticaPrivacidad } from '../../../privacidad/privacidad.models';
+import { PrivacidadApiService } from '../../../privacidad/privacidad-api.service';
 import {
   AbstractControl,
   FormControl,
@@ -26,6 +31,7 @@ type AfiliadoControls = {
   celular: FormControl<string>;
   correo: FormControl<string>;
   direccion: FormControl<string>;
+  autorizaTratamientoDatos: FormControl<boolean>;
 };
 
 type MascotaControls = {
@@ -41,38 +47,45 @@ const notBlank: ValidatorFn = (control: AbstractControl): ValidationErrors | nul
 
 const integer: ValidatorFn = (control: AbstractControl): ValidationErrors | null =>
   control.value === null || Number.isInteger(control.value) ? null : { integer: true };
-const numericOnly = /^[0-9]+$/;
-const nameCharacters = /^[\p{L}6 ]+$/u;
 const emailWithDomain = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 @Component({
   selector: 'app-registro-afiliado',
   standalone: true,
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, RouterLink, PermitirCaracteresDirective],
   templateUrl: './registro-afiliado.component.html',
   styleUrl: './registro-afiliado.component.scss'
 })
-export class RegistroAfiliadoComponent {
+export class RegistroAfiliadoComponent implements OnInit {
+  private readonly privacidadApi = inject(PrivacidadApiService);
+  /** Aviso de privacidad que se muestra al titular antes de autorizar (Ley 1581 de 2012, art. 12). */
+  politica: PoliticaPrivacidad | null = null;
+
+  ngOnInit(): void {
+    this.privacidadApi.politica().subscribe({ next: politica => this.politica = politica });
+  }
+
   private readonly afiliadoApi = inject(AfiliadoApiService);
 
   readonly especies = ESPECIES_MASCOTA;
+  readonly mensajePalabras = 'Solo puede contener letras y espacios.';
 
   readonly afiliadoForm = new FormGroup<AfiliadoControls>({
     numeroIdentificacion: new FormControl('', {
       nonNullable: true,
-      validators: [notBlank, Validators.pattern(numericOnly), Validators.maxLength(30)]
+      validators: [notBlank, Validators.pattern(SOLO_NUMEROS), Validators.maxLength(30)]
     }),
     nombres: new FormControl('', {
       nonNullable: true,
-      validators: [notBlank, Validators.pattern(nameCharacters), Validators.maxLength(100)]
+      validators: [notBlank, Validators.pattern(NOMBRE_PERSONA), Validators.maxLength(100)]
     }),
     apellidos: new FormControl('', {
       nonNullable: true,
-      validators: [notBlank, Validators.pattern(nameCharacters), Validators.maxLength(100)]
+      validators: [notBlank, Validators.pattern(SOLO_PALABRAS), Validators.maxLength(100)]
     }),
     celular: new FormControl('', {
       nonNullable: true,
-      validators: [notBlank, Validators.pattern(numericOnly), Validators.maxLength(20)]
+      validators: [notBlank, Validators.pattern(SOLO_NUMEROS), Validators.maxLength(20)]
     }),
     correo: new FormControl('', {
       nonNullable: true,
@@ -81,13 +94,17 @@ export class RegistroAfiliadoComponent {
     direccion: new FormControl('', {
       nonNullable: true,
       validators: [notBlank, Validators.maxLength(200)]
+    }),
+    autorizaTratamientoDatos: new FormControl(false, {
+      nonNullable: true,
+      validators: [Validators.requiredTrue]
     })
   });
 
   readonly mascotaForm = new FormGroup<MascotaControls>({
     nombre: new FormControl('', {
       nonNullable: true,
-      validators: [notBlank, Validators.maxLength(100)]
+      validators: [notBlank, Validators.pattern(SOLO_PALABRAS), Validators.maxLength(100)]
     }),
     especie: new FormControl('', {
       nonNullable: true,
@@ -95,14 +112,14 @@ export class RegistroAfiliadoComponent {
     }),
     raza: new FormControl('', {
       nonNullable: true,
-      validators: [notBlank, Validators.maxLength(100)]
+      validators: [notBlank, Validators.pattern(SOLO_PALABRAS), Validators.maxLength(100)]
     }),
     edad: new FormControl<number | null>(null, {
       validators: [Validators.required, Validators.min(0), Validators.max(100), integer]
     }),
     color: new FormControl('', {
       nonNullable: true,
-      validators: [notBlank, Validators.maxLength(50)]
+      validators: [notBlank, Validators.pattern(SOLO_PALABRAS), Validators.maxLength(50)]
     })
   });
 

@@ -44,6 +44,29 @@ public class Afiliacion {
             inverseJoinColumns = @JoinColumn(name = "mascota_id"))
     private Set<Mascota> mascotasCubiertas = new LinkedHashSet<>();
 
+    /** Plan que reemplazará al actual en {@link #fechaCambioProgramado} (inicio del siguiente periodo). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "plan_programado_id")
+    private Plan planProgramado;
+
+    @Column(name = "fecha_cambio_programado")
+    private LocalDate fechaCambioProgramado;
+
+    /** Si el afiliado canceló, último día en que conserva el plan; al día siguiente la afiliación termina. */
+    @Column(name = "fecha_fin")
+    private LocalDate fechaFin;
+
+    /** Asignado pero aún sin pagar la primera cuota: el plan no da beneficios hasta activarse. */
+    @Column(name = "pendiente_activacion", nullable = false)
+    private boolean pendienteActivacion;
+
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "afiliacion_mascota_programada",
+            joinColumns = @JoinColumn(name = "afiliacion_id"),
+            inverseJoinColumns = @JoinColumn(name = "mascota_id"))
+    private Set<Mascota> mascotasProgramadas = new LinkedHashSet<>();
+
     protected Afiliacion() {
     }
 
@@ -54,13 +77,75 @@ public class Afiliacion {
         this.mascotasCubiertas = new LinkedHashSet<>(mascotasCubiertas);
     }
 
-    public void cambiarPlan(Plan nuevoPlan, LocalDate fechaInicio, Collection<Mascota> mascotas) {
-        if (!plan.getId().equals(nuevoPlan.getId())) {
-            this.plan = nuevoPlan;
-            this.fechaInicio = fechaInicio;
-        }
+    /** Cambia las mascotas cubiertas del plan actual; aplica de inmediato. */
+    public void actualizarMascotas(Collection<Mascota> mascotas) {
         this.mascotasCubiertas.clear();
         this.mascotasCubiertas.addAll(mascotas);
+    }
+
+    /** Deja programado el cambio a otro plan; reemplaza cualquier cambio programado anterior. */
+    public void programarCambio(Plan nuevoPlan, LocalDate fechaCambio, Collection<Mascota> mascotas) {
+        this.planProgramado = nuevoPlan;
+        this.fechaCambioProgramado = fechaCambio;
+        this.mascotasProgramadas.clear();
+        this.mascotasProgramadas.addAll(mascotas);
+    }
+
+    public void cancelarCambioProgramado() {
+        this.planProgramado = null;
+        this.fechaCambioProgramado = null;
+        this.mascotasProgramadas.clear();
+    }
+
+    /** Recién asignado: se activará cuando se pague la primera cuota. */
+    public void marcarPendienteDeActivacion() {
+        this.pendienteActivacion = true;
+    }
+
+    /** Activa el plan al pagar la primera cuota: el primer periodo empieza en {@code fecha}. */
+    public void activar(LocalDate fecha) {
+        if (!pendienteActivacion) {
+            throw new IllegalStateException("La afiliación ya está activa.");
+        }
+        this.pendienteActivacion = false;
+        this.fechaInicio = fecha;
+    }
+
+    public boolean isPendienteActivacion() {
+        return pendienteActivacion;
+    }
+
+    /** Programa el fin del plan; también descarta un cambio de plan programado, que ya no aplicaría. */
+    public void programarCancelacion(LocalDate ultimoDia) {
+        this.fechaFin = ultimoDia;
+        cancelarCambioProgramado();
+    }
+
+    public void deshacerCancelacion() {
+        this.fechaFin = null;
+    }
+
+    public boolean tieneCancelacionProgramada() {
+        return fechaFin != null;
+    }
+
+    public LocalDate getFechaFin() {
+        return fechaFin;
+    }
+
+    public boolean tieneCambioProgramado() {
+        return planProgramado != null;
+    }
+
+    /** Activa el plan programado: su primer periodo empieza en la fecha del cambio. */
+    public void aplicarCambioProgramado() {
+        if (!tieneCambioProgramado()) {
+            throw new IllegalStateException("La afiliación no tiene un cambio de plan programado.");
+        }
+        this.plan = planProgramado;
+        this.fechaInicio = fechaCambioProgramado;
+        actualizarMascotas(mascotasProgramadas);
+        cancelarCambioProgramado();
     }
 
     public boolean cubre(Mascota mascota) {
@@ -85,5 +170,17 @@ public class Afiliacion {
 
     public Set<Mascota> getMascotasCubiertas() {
         return Set.copyOf(mascotasCubiertas);
+    }
+
+    public Plan getPlanProgramado() {
+        return planProgramado;
+    }
+
+    public LocalDate getFechaCambioProgramado() {
+        return fechaCambioProgramado;
+    }
+
+    public Set<Mascota> getMascotasProgramadas() {
+        return Set.copyOf(mascotasProgramadas);
     }
 }

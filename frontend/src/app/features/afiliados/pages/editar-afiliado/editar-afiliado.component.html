@@ -1,5 +1,4 @@
 <div class="management-page">
-  <header class="topbar"><a class="brand" routerLink="/afiliados"><span class="brand-mark">I</span><span class="brand-name">ISAPET</span></a><a class="topbar-link" routerLink="/afiliados">Gestión de afiliados</a></header>
   <main class="content">
     <a class="back-link" [routerLink]="afiliado ? ['/afiliados', afiliado.id] : ['/afiliados']">← Volver al afiliado</a>
     @if (cargando) { <div class="state-message" role="status"><span class="spinner"></span> Cargando afiliado…</div> }
@@ -12,9 +11,9 @@
           <div class="section-heading"><span class="section-index">01</span><div><h2>Datos del afiliado</h2><p>La identificación no se puede modificar.</p></div></div>
           <div class="fields">
             <label class="field field-wide"><span>Número de identificación</span><input [value]="afiliado.numeroIdentificacion" readonly /></label>
-            <label class="field"><span>Nombres</span><input formControlName="nombres" maxlength="100" [attr.aria-invalid]="!!fieldMessage(form.controls.nombres, 'nombres')" />@if (fieldMessage(form.controls.nombres, 'nombres'); as message) { <small class="field-error">{{ message }}</small> }</label>
-            <label class="field"><span>Apellidos</span><input formControlName="apellidos" maxlength="100" [attr.aria-invalid]="!!fieldMessage(form.controls.apellidos, 'apellidos')" />@if (fieldMessage(form.controls.apellidos, 'apellidos'); as message) { <small class="field-error">{{ message }}</small> }</label>
-            <label class="field"><span>Celular</span><input type="tel" inputmode="numeric" formControlName="celular" maxlength="20" [attr.aria-invalid]="!!fieldMessage(form.controls.celular, 'celular')" />@if (fieldMessage(form.controls.celular, 'celular'); as message) { <small class="field-error">{{ message }}</small> }</label>
+            <label class="field"><span>Nombres</span><input appPermitir="nombre" formControlName="nombres" maxlength="100" [attr.aria-invalid]="!!fieldMessage(form.controls.nombres, 'nombres')" />@if (fieldMessage(form.controls.nombres, 'nombres'); as message) { <small class="field-error">{{ message }}</small> }</label>
+            <label class="field"><span>Apellidos</span><input appPermitir="letras" formControlName="apellidos" maxlength="100" [attr.aria-invalid]="!!fieldMessage(form.controls.apellidos, 'apellidos')" />@if (fieldMessage(form.controls.apellidos, 'apellidos'); as message) { <small class="field-error">{{ message }}</small> }</label>
+            <label class="field"><span>Celular</span><input type="tel" inputmode="numeric" appPermitir="numeros" formControlName="celular" maxlength="20" [attr.aria-invalid]="!!fieldMessage(form.controls.celular, 'celular')" />@if (fieldMessage(form.controls.celular, 'celular'); as message) { <small class="field-error">{{ message }}</small> }</label>
             <label class="field"><span>Correo electrónico</span><input type="email" formControlName="correo" maxlength="254" [attr.aria-invalid]="!!fieldMessage(form.controls.correo, 'correo')" />@if (fieldMessage(form.controls.correo, 'correo'); as message) { <small class="field-error">{{ message }}</small> }</label>
             <label class="field field-wide"><span>Dirección</span><input formControlName="direccion" maxlength="200" [attr.aria-invalid]="!!fieldMessage(form.controls.direccion, 'direccion')" />@if (fieldMessage(form.controls.direccion, 'direccion'); as message) { <small class="field-error">{{ message }}</small> }</label>
           </div>

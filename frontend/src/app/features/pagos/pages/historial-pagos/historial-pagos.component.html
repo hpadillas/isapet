@@ -1,0 +1,133 @@
+<main class="feature-page">
+  <div class="content">
+    <a class="back-link" routerLink="/afiliados">← Volver a afiliados</a>
+
+    @if (cargando) {
+      <p class="state-message" role="status">Cargando pagos…</p>
+    } @else if (error) {
+      <section class="notice error-notice" role="alert">{{ error }}</section>
+    } @else if (afiliado && historial) {
+      <header class="page-heading">
+        <p class="eyebrow"><span aria-hidden="true"></span> AFILIADOS <span class="eyebrow-divider">/</span> PAGOS</p>
+        <h1>{{ afiliado.nombres }} {{ afiliado.apellidos }}</h1>
+        <p class="intro">Mensualidades del plan: una cuota por cada periodo de afiliación. El plan se activa al pagar la primera cuota. Las siguientes se pagan hasta 4 días después del inicio de cada periodo; si no, el plan se suspende hasta que se paguen.</p>
+      </header>
+      <app-afiliado-tabs [afiliadoId]="afiliadoId" />
+
+      @if (exito) {
+        <section class="notice success-notice" role="status">{{ exito }}</section>
+      }
+      @if (avisoRechazo) {
+        <section class="notice error-notice" role="alert">{{ avisoRechazo }}</section>
+      }
+
+      <section class="panel" aria-labelledby="payments-heading">
+        <div class="section-heading">
+          <span class="section-index">01</span>
+          <div><h2 id="payments-heading">Historial de pagos del plan</h2><p>Más recientes primero</p></div>
+        </div>
+
+        <dl class="facts">
+          <div><dt>Total pagado</dt><dd>{{ formatearPesos(historial.totalPagado) }}</dd></div>
+          <div><dt>Total pendiente</dt><dd>{{ formatearPesos(historial.totalPendiente) }}</dd></div>
+        </dl>
+
+        @if (historial.cuotas.length === 0) {
+          <p class="empty-state">El afiliado no tiene cuotas porque aún no tiene un plan. <a [routerLink]="['/afiliados', afiliadoId, 'plan']">Asignar plan</a></p>
+        } @else {
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Periodo</th><th>Plan</th><th>Valor</th><th>Estado</th><th>Pagar hasta</th><th>Fecha de pago</th><th>Medio</th><th><span class="sr-only">Acciones</span></th></tr></thead>
+              <tbody>
+                @for (cuota of historial.cuotas; track cuota.id) {
+                  <tr>
+                    <td data-label="Periodo">{{ cuota.periodoDesde | date: 'dd/MM/yyyy' }} – {{ cuota.periodoHasta | date: 'dd/MM/yyyy' }}
+                      @if (cuota.deActivacion) { <span class="badge activation-tag" title="Pagarla activa el plan">Activación</span> }</td>
+                    <td data-label="Plan">{{ cuota.planNombre }}</td>
+                    <td data-label="Valor"><strong>{{ formatearPesos(cuota.valor) }}</strong></td>
+                    <td data-label="Estado">
+                      <span class="badge" [class.badge-muted]="cuota.estado !== 'PAGADA'" [class.badge-danger]="cuota.vencida">
+                        {{ cuota.estado === 'PAGADA' ? 'Pagada' : cuota.estado === 'ANULADA' ? 'Anulada' : cuota.vencida ? 'Vencida' : 'Pendiente' }}
+                      </span>
+                    </td>
+                    <td data-label="Pagar hasta">{{ cuota.estado === 'PENDIENTE' ? (cuota.fechaLimitePago ? (cuota.fechaLimitePago | date: 'dd/MM/yyyy') : 'Activa el plan') : '—' }}</td>
+                    <td data-label="Fecha de pago">{{ cuota.fechaPago ? (cuota.fechaPago | date: 'dd/MM/yyyy') : '—' }}</td>
+                    <td data-label="Medio">{{ etiquetaMedio(cuota.medioPago) }}</td>
+                    <td data-label="Acciones">
+                      @if (cuota.estado === 'PENDIENTE') {
+                        <div class="row-actions">
+                          <button class="quiet-button" type="button" (click)="abrirPago(cuota)">Registrar pago</button>
+                          <button class="submit-button" type="button" [disabled]="abriendoPasarelaId !== null" (click)="pagarEnLinea(cuota)">
+                            {{ abriendoPasarelaId === cuota.id ? 'Abriendo…' : 'Pagar en línea' }}
+                          </button>
+                        </div>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </section>
+    }
+
+    @if (historial && afiliado) {
+      <section class="panel" aria-labelledby="ledger-heading">
+        <div class="section-heading">
+          <span class="section-index">02</span>
+          <div><h2 id="ledger-heading">Transacciones</h2><p>Todos los pagos del afiliado (mensualidades y bonos), en ISAPET o en línea.</p></div>
+        </div>
+        @if (transacciones.length === 0) {
+          <p class="empty-state">Aún no hay pagos registrados.</p>
+        } @else {
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Fecha</th><th>Referencia</th><th>Concepto</th><th>Monto</th><th>Medio</th><th>Canal</th><th>Estado</th></tr></thead>
+              <tbody>
+                @for (pago of transacciones; track pago.id) {
+                  <tr>
+                    <td data-label="Fecha">{{ (pago.fechaPago ?? pago.creadoEn) | date: 'dd/MM/yyyy' }}</td>
+                    <td data-label="Referencia"><code>{{ pago.referencia }}</code></td>
+                    <td data-label="Concepto">{{ pago.descripcion }}
+                      @if (pago.detalle) { <small class="muted"> · {{ pago.detalle }}</small> }</td>
+                    <td data-label="Monto"><strong>{{ formatearPesos(pago.monto) }}</strong></td>
+                    <td data-label="Medio">{{ etiquetaMedio(pago.medioPago) }}</td>
+                    <td data-label="Canal">{{ pago.canal === 'PASARELA' ? 'En línea' : 'En ISAPET' }}</td>
+                    <td data-label="Estado">
+                      <span class="badge" [class.badge-muted]="pago.estado === 'PENDIENTE' || pago.estado === 'ANULADO'"
+                            [class.badge-danger]="pago.estado === 'RECHAZADO'">{{ pago.estado | titlecase }}</span>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </section>
+    }
+
+    @if (cuotaAPagar) {
+      <app-confirmacion-dialog
+        titulo="Registrar pago"
+        textoConfirmar="Registrar pago"
+        [procesando]="guardando"
+        [error]="errorPago"
+        (confirmado)="confirmarPago()"
+        (cancelado)="cuotaAPagar = null">
+        <p>Cuota del plan <strong>{{ cuotaAPagar.planNombre }}</strong> por el periodo del
+          {{ cuotaAPagar.periodoDesde | date: 'dd/MM/yyyy' }} al {{ cuotaAPagar.periodoHasta | date: 'dd/MM/yyyy' }}:
+          <strong>{{ formatearPesos(cuotaAPagar.valor) }}</strong>.</p>
+        <form class="fields" [formGroup]="pagoForm" (ngSubmit)="confirmarPago()">
+          <label class="field" for="pago-fecha"><span>Fecha del pago</span><input id="pago-fecha" type="date" [max]="hoy" formControlName="fechaPago" /></label>
+          <label class="field" for="pago-medio"><span>Medio de pago</span>
+            <select id="pago-medio" formControlName="medioPago">
+              <option [ngValue]="null">Selecciona un medio</option>
+              @for (medio of mediosPago; track medio.valor) { <option [ngValue]="medio.valor">{{ medio.etiqueta }}</option> }
+            </select>
+          </label>
+        </form>
+      </app-confirmacion-dialog>
+    }
+  </div>
+</main>

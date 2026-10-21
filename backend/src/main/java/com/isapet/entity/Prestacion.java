@@ -2,6 +2,8 @@ package com.isapet.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -34,6 +36,10 @@ public class Prestacion {
     @JoinColumn(name = "bono_id", unique = true)
     private Bono bono;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private CoberturaPrestacion cobertura;
+
     @Column(nullable = false)
     private LocalDate fecha;
 
@@ -53,6 +59,7 @@ public class Prestacion {
             Mascota mascota,
             ServicioVeterinario servicio,
             Bono bono,
+            CoberturaPrestacion cobertura,
             LocalDate fecha,
             String prestador,
             String observaciones,
@@ -60,6 +67,7 @@ public class Prestacion {
         this.mascota = mascota;
         this.servicio = servicio;
         this.bono = bono;
+        this.cobertura = cobertura;
         this.fecha = fecha;
         this.prestador = prestador;
         this.observaciones = observaciones;
@@ -80,6 +88,10 @@ public class Prestacion {
 
     public Bono getBono() {
         return bono;
+    }
+
+    public CoberturaPrestacion getCobertura() {
+        return cobertura;
     }
 
     public LocalDate getFecha() {

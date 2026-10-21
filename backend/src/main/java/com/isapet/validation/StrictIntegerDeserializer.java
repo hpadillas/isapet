@@ -17,7 +17,7 @@ public class StrictIntegerDeserializer extends StdDeserializer<Integer> {
     @Override
     public Integer deserialize(JsonParser parser, DeserializationContext context) throws IOException {
         if (parser.currentToken() != JsonToken.VALUE_NUMBER_INT) {
-            throw JsonMappingException.from(parser, "La edad debe ser un número entero.");
+            throw JsonMappingException.from(parser, "Debe ser un número entero.");
         }
         return parser.getIntValue();
     }

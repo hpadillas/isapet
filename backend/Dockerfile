@@ -29,6 +29,7 @@ USER isapet
 
 ENV SERVER_PORT=8080 \
     SPRING_PROFILES_ACTIVE=docker \
+    TZ=America/Bogota \
     JAVA_OPTS="-XX:MaxRAMPercentage=75"
 
 EXPOSE 8080

@@ -1,5 +1,7 @@
 package com.isapet.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.isapet.validation.StrictIntegerDeserializer;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -12,6 +14,7 @@ public record SimulacionPlanRequest(
         @NotNull(message = "La cantidad de mascotas es obligatoria.")
         @Min(value = 1, message = "Debe simular al menos una mascota.")
         @Max(value = 20, message = "La cantidad de mascotas no puede superar 20.")
+        @JsonDeserialize(using = StrictIntegerDeserializer.class)
         Integer cantidadMascotas,
 
         @Size(max = 20, message = "No se pueden simular más de 20 servicios.")

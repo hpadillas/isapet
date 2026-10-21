@@ -105,7 +105,7 @@ class PersistenciaF01Test {
         mascotaRepository.saveAndFlush(new Mascota("Luna", "Gato", "Criollo", 2, "Gris", afiliado));
 
         Page<com.isapet.dto.AfiliadoListaResponse> resultados = afiliadoRepository.buscar(
-                "busqueda@example.com", PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "id")));
+                "busqueda@example.com", "", java.time.LocalDate.now(), PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "id")));
 
         assertThat(resultados.getTotalElements()).isEqualTo(1);
         assertThat(resultados.getContent().get(0).cantidadMascotas()).isEqualTo(2);
@@ -117,7 +117,7 @@ class PersistenciaF01Test {
                 new Afiliado("F01-PAGE-EMPTY", "Sin", "Mascotas", "3001234567", "sinmascota@example.com", "Calle 2"));
 
         Page<com.isapet.dto.AfiliadoListaResponse> resultados = afiliadoRepository.buscar(
-                "", PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "id")));
+                "", "", java.time.LocalDate.now(), PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "id")));
 
         assertThat(resultados.getContent()).isNotEmpty();
     }

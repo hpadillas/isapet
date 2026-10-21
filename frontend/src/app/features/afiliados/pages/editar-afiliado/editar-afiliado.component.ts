@@ -1,4 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
+import { PermitirCaracteresDirective } from '../../../../core/validation/permitir-caracteres.directive';
+import { NOMBRE_PERSONA, SOLO_NUMEROS, SOLO_PALABRAS } from '../../../../core/validation/campos';
 import { Component, DestroyRef, inject, OnInit } from '@angular/core';
 import { AbstractControl, FormControl, FormGroup, ReactiveFormsModule, ValidationErrors, ValidatorFn, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -6,8 +8,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AfiliadoDetalle, ActualizarAfiliadoRequest, ApiErrorResponse } from '../../models/afiliado.models';
 import { AfiliadoApiService } from '../../services/afiliado-api.service';
 
-const numericOnly = /^[0-9]+$/;
-const nameCharacters = /^[\p{L}6 ]+$/u;
 const emailWithDomain = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const notBlank: ValidatorFn = (control: AbstractControl): ValidationErrors | null =>
   typeof control.value === 'string' && control.value.trim().length > 0 ? null : { notBlank: true };
@@ -15,7 +15,7 @@ const notBlank: ValidatorFn = (control: AbstractControl): ValidationErrors | nul
 @Component({
   selector: 'app-editar-afiliado',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule, RouterLink, PermitirCaracteresDirective],
   templateUrl: './editar-afiliado.component.html',
   styleUrl: './editar-afiliado.component.scss'
 })
@@ -26,9 +26,9 @@ export class EditarAfiliadoComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   readonly form = new FormGroup({
-    nombres: new FormControl('', { nonNullable: true, validators: [notBlank, Validators.pattern(nameCharacters), Validators.maxLength(100)] }),
-    apellidos: new FormControl('', { nonNullable: true, validators: [notBlank, Validators.pattern(nameCharacters), Validators.maxLength(100)] }),
-    celular: new FormControl('', { nonNullable: true, validators: [notBlank, Validators.pattern(numericOnly), Validators.maxLength(20)] }),
+    nombres: new FormControl('', { nonNullable: true, validators: [notBlank, Validators.pattern(NOMBRE_PERSONA), Validators.maxLength(100)] }),
+    apellidos: new FormControl('', { nonNullable: true, validators: [notBlank, Validators.pattern(SOLO_PALABRAS), Validators.maxLength(100)] }),
+    celular: new FormControl('', { nonNullable: true, validators: [notBlank, Validators.pattern(SOLO_NUMEROS), Validators.maxLength(20)] }),
     correo: new FormControl('', { nonNullable: true, validators: [notBlank, Validators.email, Validators.pattern(emailWithDomain), Validators.maxLength(254)] }),
     direccion: new FormControl('', { nonNullable: true, validators: [notBlank, Validators.maxLength(200)] })
   });
@@ -48,7 +48,7 @@ export class EditarAfiliadoComponent implements OnInit {
         ? 'El celular solo puede contener números.'
         : field === 'nombres'
           ? 'El nombre solo puede contener letras, espacios y el número 6.'
-          : 'El apellido solo puede contener letras, espacios y el número 6.';
+          : 'El apellido solo puede contener letras y espacios.';
     }
     const maximum = field === 'celular' ? 20 : field === 'correo' ? 254 : field === 'direccion' ? 200 : 100;
     return control.hasError('maxlength') ? `No puede superar los ${maximum} caracteres.` : null;

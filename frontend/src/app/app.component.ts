@@ -1,12 +1,12 @@
 import { AsyncPipe } from '@angular/common';
 import { Component, inject, OnInit } from '@angular/core';
-import { Router, RouterLink, RouterOutlet } from '@angular/router';
+import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from './core/auth/auth.service';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [AsyncPipe, RouterLink, RouterOutlet],
+  imports: [AsyncPipe, RouterLink, RouterLinkActive, RouterOutlet],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss'
 })

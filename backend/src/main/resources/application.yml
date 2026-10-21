@@ -9,6 +9,18 @@ spring:
     hibernate:
       ddl-auto: none
     open-in-view: false
+  # SMTP para las notificaciones. Por defecto, Mailpit (bandeja de prueba) en el puerto 1025.
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail.smtp.auth: ${MAIL_SMTP_AUTH:false}
+      mail.smtp.starttls.enable: ${MAIL_SMTP_STARTTLS:false}
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 5000
+      mail.smtp.writetimeout: 5000
 
 server:
   port: ${SERVER_PORT:8080}
@@ -26,6 +38,24 @@ app:
       allowed-origin: ${FRONTEND_ORIGIN:}
     bootstrap-admin:
       enabled: ${BOOTSTRAP_ADMIN_ENABLED:false}
+  notificaciones:
+    habilitadas: ${NOTIFICACIONES_HABILITADAS:true}
+    remitente: ${MAIL_FROM:ISAPET <no-reply@isapet.local>}
+    # Todos los días a las 8:00 (hora del servidor) se revisan los periodos por terminar.
+    recordatorio-cron: ${RECORDATORIO_CRON:0 0 8 * * *}
+  pasarela:
+    # Secreto compartido con la pasarela para firmar (HMAC-SHA256) las notificaciones del webhook.
+    secreto: ${PASARELA_SECRETO:secreto-de-pruebas-isapet}
+  # Responsable del tratamiento de datos (Ley 1581 de 2012, art. 12-d): aparece en el aviso de privacidad.
+  privacidad:
+    responsable: ${PRIVACIDAD_RESPONSABLE:ISAPET}
+    nit: ${PRIVACIDAD_NIT:Por definir}
+    direccion: ${PRIVACIDAD_DIRECCION:Por definir}
+    correo: ${PRIVACIDAD_CORREO:protecciondatos@isapet.local}
+    telefono: ${PRIVACIDAD_TELEFONO:Por definir}
+  periodos:
+    # Cada día a las 00:05: activa cambios de plan programados y genera las cuotas nuevas.
+    renovacion-cron: ${RENOVACION_CRON:0 5 0 * * *}
 
 springdoc:
   swagger-ui:

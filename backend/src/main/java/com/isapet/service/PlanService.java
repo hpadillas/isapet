@@ -1,6 +1,8 @@
 package com.isapet.service;
 
+import com.isapet.dto.ActualizarPlanRequest;
 import com.isapet.dto.CrearPlanRequest;
+import com.isapet.dto.ImpactoEliminacionVersionResponse;
 import com.isapet.dto.CrearVersionPlanRequest;
 import com.isapet.dto.PlanResponse;
 import com.isapet.dto.VersionPlanResponse;
@@ -9,8 +11,11 @@ import com.isapet.entity.VersionPlan;
 import com.isapet.exception.PlanCodeAlreadyExistsException;
 import com.isapet.exception.PlanInactiveException;
 import com.isapet.exception.PlanNotFoundException;
+import com.isapet.exception.PlanVersionNotFoundException;
 import com.isapet.exception.VersionPlanConflictException;
+import com.isapet.repository.AfiliacionRepository;
 import com.isapet.repository.PlanRepository;
+import com.isapet.repository.ServicioVeterinarioRepository;
 import com.isapet.repository.VersionPlanRepository;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
@@ -21,20 +26,36 @@ import org.springframework.validation.annotation.Validated;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
 @Validated
 public class PlanService {
 
+    /** Fecha lejana para consultar rangos abiertos ("sin fecha de fin"). */
+    private static final LocalDate SIN_FIN = LocalDate.of(9999, 12, 31);
+
     private final PlanRepository planRepository;
     private final VersionPlanRepository versionPlanRepository;
+    private final AfiliacionRepository afiliacionRepository;
+    private final ServicioVeterinarioRepository servicioRepository;
+    private final BeneficiosPlanResolver beneficiosResolver;
 
-    public PlanService(PlanRepository planRepository, VersionPlanRepository versionPlanRepository) {
+    public PlanService(
+            PlanRepository planRepository,
+            VersionPlanRepository versionPlanRepository,
+            AfiliacionRepository afiliacionRepository,
+            ServicioVeterinarioRepository servicioRepository,
+            BeneficiosPlanResolver beneficiosResolver) {
         this.planRepository = planRepository;
         this.versionPlanRepository = versionPlanRepository;
+        this.afiliacionRepository = afiliacionRepository;
+        this.servicioRepository = servicioRepository;
+        this.beneficiosResolver = beneficiosResolver;
     }
 
     @Transactional(readOnly = true)
@@ -121,6 +142,63 @@ public class PlanService {
         return response(plan);
     }
 
+    /** Cambia el nombre del plan de inmediato; las condiciones comerciales solo cambian con una versión nueva. */
+    @Transactional
+    public PlanResponse actualizarPlan(Long planId, ActualizarPlanRequest request) {
+        Plan plan = planRepository.findByIdForUpdate(planId)
+                .orElseThrow(() -> new PlanNotFoundException(planId));
+        plan.renombrar(request.nombre().trim());
+        return response(plan);
+    }
+
+    @Transactional(readOnly = true)
+    public ImpactoEliminacionVersionResponse impactoEliminacionVersion(Long planId, Long versionId) {
+        Plan plan = planRepository.findById(planId).orElseThrow(() -> new PlanNotFoundException(planId));
+        VersionPlan version = versionEliminable(plan, versionId);
+        LocalDate hasta = siguienteVersion(plan, version).map(VersionPlan::getVigenteDesde).orElse(SIN_FIN);
+        return new ImpactoEliminacionVersionResponse(
+                version.getId(),
+                version.getVigenteDesde(),
+                afiliacionRepository.contarCambiosProgramadosAlPlanEntre(planId, version.getVigenteDesde(), hasta));
+    }
+
+    /**
+     * Elimina una versión que todavía no ha empezado. La versión anterior queda vigente hasta el inicio
+     * de la siguiente (o sin fin, si no hay otra). Las vigentes e históricas no se pueden eliminar.
+     */
+    @Transactional
+    public PlanResponse eliminarVersion(Long planId, Long versionId) {
+        Plan plan = planRepository.findByIdForUpdate(planId)
+                .orElseThrow(() -> new PlanNotFoundException(planId));
+        VersionPlan version = versionEliminable(plan, versionId);
+        plan.quitarVersion(version);
+        versionPlanRepository.delete(version);
+        versionPlanRepository.flush();
+        return response(plan);
+    }
+
+    private VersionPlan versionEliminable(Plan plan, Long versionId) {
+        VersionPlan version = plan.getVersiones().stream()
+                .filter(candidata -> candidata.getId().equals(versionId))
+                .findFirst()
+                .orElseThrow(() -> new PlanVersionNotFoundException(plan.getId(), versionId));
+        if (!version.getVigenteDesde().isAfter(LocalDate.now())) {
+            throw new VersionPlanConflictException(
+                    "Solo se pueden eliminar versiones programadas, que aún no han empezado. "
+                            + "Las versiones vigentes e históricas se conservan.");
+        }
+        if (plan.getVersiones().size() == 1) {
+            throw new VersionPlanConflictException("No se puede eliminar la única versión del plan.");
+        }
+        return version;
+    }
+
+    private static Optional<VersionPlan> siguienteVersion(Plan plan, VersionPlan version) {
+        return plan.getVersiones().stream()
+                .filter(candidata -> candidata.getVigenteDesde().isAfter(version.getVigenteDesde()))
+                .min(Comparator.comparing(VersionPlan::getVigenteDesde));
+    }
+
     @Transactional
     public PlanResponse desactivarPlan(Long planId) {
         Plan plan = planRepository.findByIdForUpdate(planId)
@@ -147,7 +225,10 @@ public class PlanService {
                 plan.getCodigo(),
                 plan.getNombre(),
                 plan.isActivo(),
-                List.copyOf(respuestas));
+                List.copyOf(respuestas),
+                beneficiosResolver.beneficios(
+                        servicioRepository.findAllByActivoTrueOrderByTipoAscValorBaseAsc(),
+                        beneficiosResolver.descuentosPorPlan(List.of(plan.getId())).getOrDefault(plan.getId(), Map.of())));
     }
 
     private VersionPlanResponse versionResponse(VersionPlan version, LocalDate vigenteHastaExclusiva) {

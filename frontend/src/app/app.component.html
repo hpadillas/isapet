@@ -1,19 +1,23 @@
 <header class="app-header">
-  <a class="brand" routerLink="/afiliados/registro" aria-label="ISAPET, inicio">
+  <a class="brand" routerLink="/" aria-label="ISAPET, inicio">
     <span class="brand-mark" aria-hidden="true">I</span>
     <span>ISAPET</span>
   </a>
 
   @if (auth.session$ | async; as session) {
-    <nav class="session-actions" aria-label="Navegación principal">
-      <span class="session-user">{{ session.username }}</span>
-      <a class="login-link" routerLink="/simulador">Simular plan</a>
+    <nav class="main-nav" aria-label="Navegación principal">
       @if (session.roles.includes('ADMIN')) {
-        <a class="login-link" routerLink="/afiliados">Afiliados</a>
-        <a class="login-link" routerLink="/planes">Administrar planes</a>
+        <a class="nav-link" routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Inicio</a>
+        <a class="nav-link" routerLink="/afiliados" routerLinkActive="active">Afiliados</a>
+        <a class="nav-link" routerLink="/planes" routerLinkActive="active">Planes</a>
+        <a class="nav-link" routerLink="/finanzas" routerLinkActive="active">Finanzas</a>
       }
-      <button class="logout-button" type="button" (click)="logout()">Cerrar sesión</button>
+      <a class="nav-link" routerLink="/simulador" routerLinkActive="active">Simular plan</a>
     </nav>
+    <div class="session-actions">
+      <span class="session-user" aria-label="Sesión iniciada como">{{ session.username }}</span>
+      <button class="logout-button" type="button" (click)="logout()">Cerrar sesión</button>
+    </div>
   } @else {
     <nav class="session-actions" aria-label="Navegación pública">
       <a class="login-link" routerLink="/simulador">Simular plan</a>

@@ -9,6 +9,7 @@ import com.isapet.entity.Afiliado;
 import com.isapet.exception.AfiliadoNotFoundException;
 import com.isapet.exception.DuplicateNumeroIdentificacionException;
 import com.isapet.repository.AfiliadoRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.junit.jupiter.api.Test;
@@ -24,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import java.time.Clock;
 import java.util.List;
 import java.util.Optional;
 
@@ -35,6 +37,15 @@ class AfiliadoServiceTest {
 
     @Spy
     private AfiliadoMapper afiliadoMapper = new AfiliadoMapper();
+
+    @Mock
+    private ApplicationEventPublisher eventos;
+
+    @Mock
+    private AutorizacionDatosService autorizacionService;
+
+    @Spy
+    private Clock clock = Clock.systemDefaultZone();
 
     @InjectMocks
     private AfiliadoService afiliadoService;
@@ -54,6 +65,8 @@ class AfiliadoServiceTest {
         assertThat(response.correo()).isEqualTo("ana@example.com");
         assertThat(response.direccion()).isEqualTo("Calle 1");
         verify(afiliadoRepository).save(any(Afiliado.class));
+        verify(eventos).publishEvent(any(EventoAfiliado.AfiliadoRegistrado.class));
+        verify(autorizacionService).registrar(afiliado, AutorizacionDatosService.MEDIO_REGISTRO);
     }
 
     @Test
@@ -91,14 +104,14 @@ class AfiliadoServiceTest {
 
         @Test
         void listaPermiteBusquedaVaciaYBuscaPorEmail() {
-        when(afiliadoRepository.buscar(org.mockito.ArgumentMatchers.eq(""), any()))
+        when(afiliadoRepository.buscar(org.mockito.ArgumentMatchers.eq(""), any(), any(), any()))
             .thenReturn(new PageImpl<>(List.of()));
-        when(afiliadoRepository.buscar(org.mockito.ArgumentMatchers.eq("ana@example.com"), any()))
+        when(afiliadoRepository.buscar(org.mockito.ArgumentMatchers.eq("ana@example.com"), any(), any(), any()))
             .thenReturn(new PageImpl<>(List.of(new AfiliadoListaResponse(
-                1L, "100", "Ana", "Gomez", "300", "ana@example.com", "Calle 1", 0L))));
+                1L, "100", "Ana", "Gomez", "300", "ana@example.com", "Calle 1", 0L, null, "SIN_PLAN"))));
 
-        assertThat(afiliadoService.listar(" ", PageRequest.of(0, 10)).getContent()).isEmpty();
-        assertThat(afiliadoService.listar(" ana@example.com ", PageRequest.of(0, 10)).getContent())
+        assertThat(afiliadoService.listar(" ", null, PageRequest.of(0, 10)).getContent()).isEmpty();
+        assertThat(afiliadoService.listar(" ana@example.com ", null, PageRequest.of(0, 10)).getContent())
             .hasSize(1);
         }
 
@@ -110,6 +123,6 @@ class AfiliadoServiceTest {
             String correo,
             String direccion) {
         return new CrearAfiliadoRequest(
-                numeroIdentificacion, nombres, apellidos, celular, correo, direccion);
+                numeroIdentificacion, nombres, apellidos, celular, correo, direccion, true);
     }
 }

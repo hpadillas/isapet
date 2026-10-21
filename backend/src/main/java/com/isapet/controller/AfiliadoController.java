@@ -7,7 +7,10 @@ import com.isapet.dto.CrearMascotaResponse;
 import com.isapet.dto.ActualizarAfiliadoRequest;
 import com.isapet.dto.AfiliadoDetalleResponse;
 import com.isapet.dto.AfiliadoListaResponse;
+import com.isapet.dto.EstadoPlanAfiliado;
+import com.isapet.dto.ResumenEliminacionAfiliadoResponse;
 import com.isapet.service.AfiliadoService;
+import com.isapet.service.EliminacionAfiliadoService;
 import com.isapet.service.MascotaService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -21,6 +24,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PagedModel;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.data.domain.Sort;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -38,19 +42,28 @@ public class AfiliadoController {
 
     private final AfiliadoService afiliadoService;
     private final MascotaService mascotaService;
+    private final EliminacionAfiliadoService eliminacionService;
 
-    public AfiliadoController(AfiliadoService afiliadoService, MascotaService mascotaService) {
+    public AfiliadoController(
+            AfiliadoService afiliadoService,
+            MascotaService mascotaService,
+            EliminacionAfiliadoService eliminacionService) {
         this.afiliadoService = afiliadoService;
         this.mascotaService = mascotaService;
+        this.eliminacionService = eliminacionService;
     }
 
-    @Operation(summary = "Listar afiliados", description = "Lista afiliados con paginación, búsqueda y cantidad real de mascotas.")
+    @Operation(
+            summary = "Listar afiliados",
+            description = "Lista afiliados con paginación, búsqueda, cantidad de mascotas y estado del plan; 'estado' filtra por "
+                    + "SIN_PLAN, POR_ACTIVAR, ACTIVO o SUSPENDIDO.")
     @ApiResponse(responseCode = "200", description = "Página de afiliados")
     @GetMapping
     public PagedModel<AfiliadoListaResponse> listar(
             @RequestParam(required = false) String q,
+            @RequestParam(required = false) EstadoPlanAfiliado estado,
             @PageableDefault(size = 10, sort = "id", direction = Sort.Direction.DESC) Pageable pageable) {
-        return new PagedModel<>(afiliadoService.listar(q, pageable));
+        return new PagedModel<>(afiliadoService.listar(q, estado, pageable));
     }
 
     @Operation(summary = "Consultar afiliado", description = "Obtiene los datos de un afiliado registrado.")
@@ -116,6 +129,31 @@ public class AfiliadoController {
     @GetMapping("/{afiliadoId}/mascotas")
     public List<CrearMascotaResponse> listarMascotas(@PathVariable Long afiliadoId) {
         return mascotaService.listar(afiliadoId);
+    }
+
+    @Operation(
+            summary = "Resumen previo a eliminar el afiliado",
+            description = "Cantidad de mascotas, atenciones (historia clínica), bonos y cuotas que se borrarán.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Resumen de lo que se eliminará"),
+            @ApiResponse(responseCode = "404", description = "Afiliado no encontrado")
+    })
+    @GetMapping("/{afiliadoId}/eliminacion")
+    public ResumenEliminacionAfiliadoResponse resumenEliminacion(@PathVariable Long afiliadoId) {
+        return eliminacionService.resumen(afiliadoId);
+    }
+
+    @Operation(
+            summary = "Eliminar afiliado",
+            description = "Elimina el afiliado, sus mascotas con su historia clínica, bonos, plan y pagos. No se puede deshacer.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Afiliado eliminado"),
+            @ApiResponse(responseCode = "404", description = "Afiliado no encontrado")
+    })
+    @DeleteMapping("/{afiliadoId}")
+    public ResponseEntity<Void> eliminar(@PathVariable Long afiliadoId) {
+        eliminacionService.eliminar(afiliadoId);
+        return ResponseEntity.noContent().build();
     }
 
 }

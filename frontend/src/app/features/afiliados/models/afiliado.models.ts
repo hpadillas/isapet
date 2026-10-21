@@ -5,6 +5,8 @@ export interface CrearAfiliadoRequest {
   celular: string;
   correo: string;
   direccion: string;
+  /** Autorización previa, expresa e informada del titular (Ley 1581 de 2012). */
+  autorizaTratamientoDatos: boolean;
 }
 
 export interface CrearAfiliadoResponse {
@@ -28,8 +30,14 @@ export interface ActualizarAfiliadoRequest {
 export interface AfiliadoDetalle extends CrearAfiliadoResponse {
 }
 
+/** Estado del plan que se ve y se filtra en la lista de afiliados. */
+export type EstadoPlanAfiliado = 'SIN_PLAN' | 'POR_ACTIVAR' | 'ACTIVO' | 'SUSPENDIDO';
+
 export interface AfiliadoListaItem extends AfiliadoDetalle {
   cantidadMascotas: number;
+  /** Nombre del plan, o null si no tiene. */
+  plan: string | null;
+  estadoPlan: EstadoPlanAfiliado;
 }
 
 export interface Pagina<T> {
@@ -53,6 +61,17 @@ export interface CrearMascotaRequest {
 export interface CrearMascotaResponse extends CrearMascotaRequest {
   id: number;
   afiliadoId: number;
+}
+
+export interface ResumenEliminacionAfiliado {
+  afiliadoId: number;
+  numeroIdentificacion: string;
+  nombreCompleto: string;
+  plan: string | null;
+  mascotas: string[];
+  atenciones: number;
+  bonos: number;
+  cuotas: number;
 }
 
 export interface ApiErrorResponse {

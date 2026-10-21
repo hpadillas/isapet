@@ -13,6 +13,7 @@ public record PrestacionResponse(
         String tipoServicio,
         String prestador,
         String observaciones,
+        String cobertura,
         Long bonoId,
         String bonoCodigo,
         BigDecimal valorPagadoBono

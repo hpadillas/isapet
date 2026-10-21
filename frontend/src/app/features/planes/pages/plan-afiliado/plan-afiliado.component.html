@@ -18,22 +18,82 @@
         <section class="notice success-notice" role="status">{{ exito }}</section>
       }
 
+      @if (plan && plan.estado === 'PENDIENTE_ACTIVACION') {
+        <section class="notice scheduled-notice" role="status">
+          <div>
+            <strong>Plan pendiente de activación.</strong>
+            @if (plan.cuotaPendiente; as cuota) {
+              Se activa cuando se pague la primera cuota de <strong>{{ formatearPesos(cuota.valor) }}</strong>.
+            }
+            Hasta entonces no hay atenciones incluidas ni compra de bonos.
+          </div>
+          <a class="quiet-button" [routerLink]="['/afiliados', afiliadoId, 'pagos']">Pagar activación</a>
+        </section>
+      } @else if (plan && plan.estado === 'SUSPENDIDO') {
+        <section class="notice error-notice suspended-notice" role="alert">
+          <div>
+            <strong>Plan suspendido por falta de pago.</strong>
+            @if (plan.cuotaPendiente; as cuota) {
+              La cuota de {{ formatearPesos(cuota.valor) }} del periodo que inició el {{ cuota.periodoDesde | date: 'dd/MM/yyyy' }}
+              debía pagarse hasta el {{ cuota.fechaLimitePago | date: 'dd/MM/yyyy' }}.
+            }
+            Mientras tanto no se pueden usar las atenciones incluidas ni comprar bonos. Al registrar el pago se reactiva.
+          </div>
+          <a class="quiet-button" [routerLink]="['/afiliados', afiliadoId, 'pagos']">Registrar pago</a>
+        </section>
+      } @else {
+        @if (plan?.cuotaPendiente; as cuota) {
+          <section class="notice scheduled-notice" role="status">
+            <div>Cuota pendiente de <strong>{{ formatearPesos(cuota.valor) }}</strong> (periodo del {{ cuota.periodoDesde | date: 'dd/MM/yyyy' }}).
+              Debe pagarse hasta el <strong>{{ cuota.fechaLimitePago | date: 'dd/MM/yyyy' }}</strong> o el plan se suspende.</div>
+            <a class="quiet-button" [routerLink]="['/afiliados', afiliadoId, 'pagos']">Ir a pagos</a>
+          </section>
+        }
+      }
+
+      @if (plan?.fechaFin; as fechaFin) {
+        <section class="notice scheduled-notice" role="status">
+          <div><strong>Cancelación programada.</strong> El plan {{ plan!.nombre }} sigue activo hasta el
+            <strong>{{ fechaFin | date: 'dd/MM/yyyy' }}</strong>; desde el día siguiente el afiliado queda sin plan y no se generan más cuotas.</div>
+          <button class="quiet-button" type="button" (click)="confirmandoDeshacerCancelacion = true; errorDialogo = ''">Deshacer cancelación</button>
+        </section>
+      }
+
+      @if (plan?.cambioProgramado; as cambio) {
+        <section class="notice scheduled-notice" role="status">
+          <div>
+            <strong>Cambio de plan programado.</strong>
+            El plan {{ plan!.nombre }} sigue vigente hasta el {{ plan!.periodoHasta | date: 'dd/MM/yyyy' }}.
+            El {{ cambio.fechaActivacion | date: 'dd/MM/yyyy' }} se activará el plan <strong>{{ cambio.nombre }}</strong>
+            ({{ formatearPesos(cambio.precioMensual) }}/mes) cubriendo a {{ nombresMascotas(cambio.mascotas) }}.
+          </div>
+          <button class="quiet-button" type="button" (click)="confirmandoCancelacion = true; errorDialogo = ''">Cancelar cambio</button>
+        </section>
+      }
+
       @if (plan && !editando) {
         <section class="panel" aria-labelledby="plan-heading">
           <div class="section-heading">
             <span class="section-index">01</span>
             <div>
               <h2 id="plan-heading">Plan {{ plan.nombre }} <span class="badge" [class.badge-muted]="!plan.planActivo" [class.badge-good]="plan.planActivo">{{ plan.planActivo ? 'Activo' : 'Plan descontinuado' }}</span></h2>
-              <p>Afiliado desde {{ plan.fechaInicio }} · condiciones vigentes desde {{ plan.versionVigenteDesde }}</p>
+              <p>Afiliado desde {{ plan.fechaInicio | date: 'dd/MM/yyyy' }} · periodo actual del {{ plan.periodoDesde | date: 'dd/MM/yyyy' }} al {{ plan.periodoHasta | date: 'dd/MM/yyyy' }} · condiciones vigentes desde {{ plan.versionVigenteDesde | date: 'dd/MM/yyyy' }}</p>
             </div>
-            <button class="quiet-button" type="button" (click)="cambiarPlan()">Cambiar plan o mascotas</button>
+            <div class="heading-actions">
+              <button class="quiet-button" type="button" (click)="cambiarPlan()">Cambiar plan o mascotas</button>
+              @if (!plan.fechaFin) {
+                <button class="danger-button" type="button" [disabled]="consultandoCancelacion" (click)="prepararCancelacionPlan()">
+                  {{ consultandoCancelacion ? 'Consultando…' : 'Cancelar plan' }}
+                </button>
+              }
+            </div>
           </div>
 
           <dl class="facts facts-wide">
             <div><dt>Valor mensual</dt><dd>{{ formatearPesos(plan.precioMensual) }}</dd></div>
             <div><dt>Mascotas cubiertas</dt><dd>{{ plan.mascotasCubiertas.length }} de {{ plan.maximoMascotas }}</dd></div>
-            <div><dt>Atenciones con descuento</dt><dd>{{ plan.atencionesIlimitadas ? 'Ilimitadas' : plan.limiteAtenciones + ' por mes' }}</dd></div>
-            <div><dt>Uso este mes</dt><dd>{{ plan.bonosCompradosMes }} {{ plan.bonosCompradosMes === 1 ? 'bono' : 'bonos' }}{{ plan.bonosDisponiblesMes === null ? '' : ' · ' + plan.bonosDisponiblesMes + ' disponibles' }}</dd></div>
+            <div><dt>Atenciones incluidas</dt><dd>{{ plan.atencionesIlimitadas ? 'Ilimitadas' : plan.limiteAtenciones + ' por periodo' }}</dd></div>
+            <div><dt>Uso del periodo</dt><dd>{{ plan.atencionesIlimitadas ? plan.atencionesIncluidasUsadas + ' usadas' : plan.atencionesIncluidasUsadas + ' de ' + plan.limiteAtenciones + ' · quedan ' + plan.atencionesIncluidasRestantes }}</dd></div>
           </dl>
 
           <h3 class="subheading">Mascotas cubiertas</h3>
@@ -42,6 +102,65 @@
               <li>{{ mascota.nombre }} <small>{{ mascota.especie }}</small></li>
             }
           </ul>
+
+          <h3 class="subheading">Atenciones incluidas del periodo </h3>
+          @if (!plan.atencionesIlimitadas) {
+            <div class="usage-meter" role="meter" [attr.aria-valuenow]="plan.atencionesIncluidasUsadas" aria-valuemin="0" [attr.aria-valuemax]="plan.limiteAtenciones" aria-label="Atenciones incluidas usadas en el periodo">
+              <span [style.width.%]="porcentajeUsoPeriodo"></span>
+            </div>
+            <p class="usage-note">{{ plan.atencionesIncluidasUsadas }} de {{ plan.limiteAtenciones }} usadas · {{ plan.atencionesIncluidasRestantes === 0 ? 'agotadas: las siguientes atenciones se pagan con bonos' : 'quedan ' + plan.atencionesIncluidasRestantes + ' sin costo' }}</p>
+          }
+          @if (plan.atencionesIncluidasPeriodo.length === 0) {
+            <p class="empty-state">Aún no se han usado atenciones incluidas en este periodo. <a [routerLink]="['/afiliados', afiliadoId, 'prestaciones']">Registrar una atención</a></p>
+          } @else {
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead><tr><th>Fecha</th><th>Mascota</th><th>Servicio</th><th>Prestador</th></tr></thead>
+                <tbody>
+                  @for (atencion of plan.atencionesIncluidasPeriodo; track atencion.id) {
+                    <tr>
+                      <td data-label="Fecha">{{ atencion.fecha | date: 'dd/MM/yyyy' }}</td>
+                      <td data-label="Mascota">{{ atencion.mascotaNombre }}</td>
+                      <td data-label="Servicio">{{ atencion.servicioNombre }}</td>
+                      <td data-label="Prestador">{{ atencion.prestador }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+
+          @if (!plan.atencionesIlimitadas) {
+            <h3 class="subheading">Bonos del periodo <small class="muted">· atenciones adicionales con descuento</small></h3>
+            @if (plan.bonosPeriodo.length === 0) {
+              <p class="empty-state">
+                @if (plan.atencionesIncluidasRestantes) {
+                  Los bonos se habilitan cuando se usen las atenciones incluidas del periodo.
+                } @else {
+                  No se han comprado bonos en este periodo. <a [routerLink]="['/afiliados', afiliadoId, 'bonos']">Comprar un bono</a>
+                }
+              </p>
+            } @else {
+              <div class="table-wrap">
+                <table class="data-table">
+                  <thead><tr><th>Compra</th><th>Bono</th><th>Mascota</th><th>Servicio</th><th>Valor pagado</th><th>Estado</th></tr></thead>
+                  <tbody>
+                    @for (bono of plan.bonosPeriodo; track bono.id) {
+                      <tr>
+                        <td data-label="Compra">{{ bono.fechaCompra | date: 'dd/MM/yyyy' }}</td>
+                        <td data-label="Bono">{{ bono.codigo }}</td>
+                        <td data-label="Mascota">{{ bono.mascotaNombre }}</td>
+                        <td data-label="Servicio">{{ bono.servicioNombre }}</td>
+                        <td data-label="Valor pagado">{{ formatearPesos(bono.valorPagado) }}</td>
+                        <td data-label="Estado"><span class="badge" [class.badge-muted]="bono.estado === 'DISPONIBLE'">{{ bono.estado === 'USADO' ? 'Atención realizada' : 'Sin usar' }}</span></td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          }
+          <p class="usage-note">Registra cada atención en <a [routerLink]="['/afiliados', afiliadoId, 'prestaciones']">Prestaciones</a>: sin bono usa una de las incluidas; con bono, la adicional ya pagada.</p>
 
           <h3 class="subheading">Beneficios en servicios</h3>
           <div class="table-wrap">
@@ -67,7 +186,7 @@
             <span class="section-index">{{ plan ? '✎' : '01' }}</span>
             <div>
               <h2 id="assign-heading">{{ plan ? 'Cambiar plan' : 'Asignar plan' }}</h2>
-              <p>{{ plan ? 'Si eliges otro plan, la fecha de afiliación se reinicia hoy.' : 'Este afiliado aún no tiene un plan de afiliación.' }}</p>
+              <p>{{ plan ? 'Si eliges otro plan, el actual sigue hasta el ' + (plan.periodoHasta | date: 'dd/MM/yyyy') + ' y el nuevo se activa al día siguiente. Si conservas el plan, el cambio de mascotas aplica de inmediato.' : 'Este afiliado aún no tiene un plan de afiliación. Se activa cuando se pague la primera cuota.' }}</p>
             </div>
           </div>
 
@@ -108,6 +227,97 @@
           }
         </form>
       }
+    }
+
+    @if (confirmacion; as c) {
+      <app-confirmacion-dialog
+        [titulo]="c.tipo === 'cambio' ? '¿Cambiar al plan ' + c.planNuevo + '?' : c.tipo === 'mascotas' ? '¿Actualizar las mascotas cubiertas?' : '¿Asignar el plan ' + c.planNuevo + '?'"
+        [textoConfirmar]="c.tipo === 'cambio' ? 'Sí, programar el cambio' : c.tipo === 'mascotas' ? 'Sí, actualizar' : 'Sí, asignar plan'"
+        [procesando]="guardando"
+        [error]="errorDialogo"
+        (confirmado)="confirmarGuardar()"
+        (cancelado)="confirmacion = null">
+        @switch (c.tipo) {
+          @case ('cambio') {
+            <dl class="change-summary">
+              <div><dt>Plan actual · {{ plan?.nombre }}</dt><dd>Sigue vigente hasta el <strong>{{ c.finPlanActual | date: 'dd/MM/yyyy' }}</strong></dd></div>
+              <div><dt>Plan nuevo · {{ c.planNuevo }}</dt><dd>Se activa el <strong>{{ c.fechaActivacion | date: 'dd/MM/yyyy' }}</strong>; primer periodo hasta el {{ c.finPrimerPeriodo | date: 'dd/MM/yyyy' }}</dd></div>
+              <div><dt>Valor mensual del plan nuevo</dt><dd>{{ formatearPesos(c.precioNuevo) }}</dd></div>
+              <div><dt>Mascotas que cubrirá</dt><dd>{{ c.mascotas.join(', ') }}</dd></div>
+            </dl>
+            <p>Hasta esa fecha se conservan las mascotas cubiertas y las atenciones incluidas del plan actual.
+              Puedes cancelar el cambio antes de que se active.
+              @if (plan?.cambioProgramado; as anterior) { Reemplaza el cambio ya programado al plan {{ anterior.nombre }}. }</p>
+          }
+          @case ('mascotas') {
+            <p>El plan <strong>{{ c.planNuevo }}</strong> no cambia. Desde hoy cubrirá a: <strong>{{ c.mascotas.join(', ') }}</strong>.</p>
+            <p>Las atenciones ya registradas y el periodo actual (hasta el {{ plan?.periodoHasta | date: 'dd/MM/yyyy' }}) se mantienen.</p>
+          }
+          @default {
+            <dl class="change-summary">
+              <div><dt>Se activa</dt><dd><strong>Al pagar la primera cuota</strong> ({{ formatearPesos(c.precioNuevo) }}); el primer periodo empieza el día del pago</dd></div>
+              <div><dt>Mascotas que cubrirá</dt><dd>{{ c.mascotas.join(', ') }}</dd></div>
+            </dl>
+            <p>El plan queda <strong>pendiente de activación</strong>: hasta que se pague, no hay atenciones incluidas ni compra de bonos.
+              La cuota de activación queda en la pestaña Pagos, en ISAPET o en línea.</p>
+          }
+        }
+      </app-confirmacion-dialog>
+    }
+
+    @if (cancelacionPrevista; as c) {
+      <app-confirmacion-dialog
+        [titulo]="'¿Cancelar el plan ' + c.plan + '?'"
+        textoConfirmar="Sí, cancelar plan"
+        [peligro]="true"
+        [procesando]="guardando"
+        [error]="errorDialogo"
+        (confirmado)="confirmarCancelacionPlan()"
+        (cancelado)="cancelacionPrevista = null">
+        @if (c.inmediata) {
+          <p>El plan <strong>termina hoy, {{ c.ultimoDia | date: 'dd/MM/yyyy' }}</strong>. El afiliado no podrá usar atenciones incluidas
+            ni comprar bonos; los bonos ya comprados los puede seguir usando.</p>
+        } @else {
+          <p>El plan <strong>sigue activo hasta el {{ c.ultimoDia | date: 'dd/MM/yyyy' }}</strong>, último día del periodo ya pagado.
+            Desde el día siguiente el afiliado queda sin plan y no se generan más cuotas. Puedes deshacer la cancelación antes de esa fecha.</p>
+        }
+        <p class="dialog-reason">{{ c.motivo }}</p>
+        @if (c.valorAnulado > 0) {
+          <p>Se <strong>anulará</strong> la cuota pendiente de {{ formatearPesos(c.valorAnulado) }}: no se cobrará.</p>
+        }
+        @if (c.deudaPendiente > 0) {
+          <p class="dialog-warning">Las cuotas vencidas ({{ formatearPesos(c.deudaPendiente) }}) seguirán pendientes de pago.</p>
+        }
+        @if (plan?.cambioProgramado) {
+          <p>También se descartará el cambio de plan programado.</p>
+        }
+      </app-confirmacion-dialog>
+    }
+
+    @if (confirmandoDeshacerCancelacion && plan?.fechaFin) {
+      <app-confirmacion-dialog
+        titulo="¿Deshacer la cancelación?"
+        textoConfirmar="Sí, conservar el plan"
+        [procesando]="guardando"
+        [error]="errorDialogo"
+        (confirmado)="deshacerCancelacion()"
+        (cancelado)="confirmandoDeshacerCancelacion = false">
+        <p>El plan <strong>{{ plan!.nombre }}</strong> seguirá activo después del {{ plan!.fechaFin | date: 'dd/MM/yyyy' }}
+          y se generarán sus cuotas normalmente.</p>
+      </app-confirmacion-dialog>
+    }
+
+    @if (confirmandoCancelacion && plan?.cambioProgramado; as cambio) {
+      <app-confirmacion-dialog
+        titulo="¿Cancelar el cambio de plan?"
+        textoConfirmar="Sí, cancelar el cambio"
+        [procesando]="guardando"
+        [error]="errorDialogo"
+        (confirmado)="cancelarCambioProgramado()"
+        (cancelado)="confirmandoCancelacion = false">
+        <p>El afiliado seguirá en el plan <strong>{{ plan!.nombre }}</strong> y no se activará el plan {{ cambio.nombre }}
+          el {{ cambio.fechaActivacion | date: 'dd/MM/yyyy' }}.</p>
+      </app-confirmacion-dialog>
     }
   </div>
 </main>

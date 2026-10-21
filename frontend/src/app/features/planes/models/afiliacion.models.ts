@@ -1,3 +1,7 @@
+import { Bono } from '../../bonos/models/bono.models';
+import { CuotaPlan } from '../../pagos/models/pago.models';
+import { Prestacion } from '../../prestaciones/models/prestacion.models';
+
 export type TipoServicio = 'CONSULTA' | 'PROCEDIMIENTO';
 
 export interface ServicioVeterinario {
@@ -72,8 +76,36 @@ export interface PlanAfiliado {
   versionVigenteDesde: string;
   mascotasCubiertas: MascotaCubierta[];
   beneficios: BeneficioServicio[];
-  bonosCompradosMes: number;
-  bonosDisponiblesMes: number | null;
+  periodoDesde: string;
+  periodoHasta: string;
+  atencionesIncluidasUsadas: number;
+  atencionesIncluidasRestantes: number | null;
+  atencionesIncluidasPeriodo: Prestacion[];
+  bonosPeriodo: Bono[];
+  cambioProgramado: CambioPlanProgramado | null;
+  /** PENDIENTE_ACTIVACION: asignado, se activa al pagar la primera cuota. */
+  estado: 'PENDIENTE_ACTIVACION' | 'ACTIVO' | 'SUSPENDIDO';
+  /** Último día del plan si el afiliado lo canceló. */
+  fechaFin: string | null;
+  cuotaPendiente: CuotaPlan | null;
+}
+
+export interface CancelacionPlan {
+  plan: string;
+  inmediata: boolean;
+  ultimoDia: string;
+  motivo: string;
+  valorAnulado: number;
+  deudaPendiente: number;
+}
+
+export interface CambioPlanProgramado {
+  planId: number;
+  codigo: string;
+  nombre: string;
+  fechaActivacion: string;
+  precioMensual: number | null;
+  mascotas: MascotaCubierta[];
 }
 
 export interface AsignarPlanRequest {

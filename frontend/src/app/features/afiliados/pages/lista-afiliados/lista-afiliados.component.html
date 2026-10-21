@@ -1,28 +1,42 @@
 <div class="management-page">
-  <header class="topbar">
-    <a class="brand" routerLink="/afiliados" aria-label="ISAPET, afiliados"><span class="brand-mark">I</span><span class="brand-name">ISAPET</span></a>
-    <a class="topbar-link" routerLink="/afiliados/registro">Nuevo afiliado</a>
-  </header>
-
   <main class="content">
     <div class="page-heading">
-      <p class="eyebrow"><span></span> AFILIADOS <span class="eyebrow-divider">/</span> ADMINISTRACIÓN</p>
+      <p class="eyebrow"><span></span> AFILIADOS</p>
       <div class="heading-row">
         <div>
-          <h1>Gestión de Afiliados</h1>
-          <p class="intro">Consulta afiliados y administra la información de sus mascotas.</p>
+          <h1>Afiliados</h1>
+          <p class="intro">Busca un afiliado para ver su plan, sus mascotas y sus pagos.</p>
         </div>
         <a class="primary-button" routerLink="/afiliados/registro">+ Nuevo afiliado</a>
       </div>
     </div>
 
-    <section class="list-tools" aria-label="Búsqueda de afiliados">
-      <label class="search-field" for="search-affiliates">
-        <span aria-hidden="true">⌕</span>
-        <input id="search-affiliates" type="search" [formControl]="busqueda" placeholder="Buscar por identificación, nombre o email" />
-      </label>
-      @if (busqueda.value) { <button class="quiet-button" type="button" (click)="limpiarBusqueda()">Limpiar búsqueda</button> }
-      @if (pagina()) { <span class="result-count">{{ pagina()!.page.totalElements }} resultados</span> }
+    @if (afiliadoEliminado) {
+      <section class="notice success-notice" role="status">Se eliminó a {{ afiliadoEliminado }} junto con sus mascotas, su historia clínica, sus bonos y sus pagos.</section>
+    }
+
+    <section class="list-tools" aria-label="Búsqueda y filtros de afiliados">
+      <div class="search-row">
+        <label class="search-field" for="search-affiliates">
+          <span aria-hidden="true">⌕</span>
+          <input id="search-affiliates" type="search" [formControl]="busqueda" placeholder="Buscar por identificación, nombre o correo" />
+        </label>
+        @if (busqueda.value || estado) { <button class="quiet-button" type="button" (click)="limpiarFiltros()">Limpiar filtros</button> }
+      </div>
+      <div class="filter-row">
+        <div class="status-filters" role="group" aria-label="Filtrar por estado del plan">
+          @for (opcion of filtros; track opcion.valor) {
+            <button type="button" class="status-filter" [class.selected]="estado === opcion.valor" [attr.aria-pressed]="estado === opcion.valor"
+                    (click)="filtrar(opcion.valor)">
+              @if (opcion.valor) { <span class="dot" [class]="'dot dot-' + opcion.clase" aria-hidden="true"></span> }
+              {{ opcion.etiqueta }}
+            </button>
+          }
+        </div>
+        @if (pagina()) {
+          <span class="result-count" aria-live="polite">{{ pagina()!.page.totalElements }} {{ pagina()!.page.totalElements === 1 ? 'afiliado' : 'afiliados' }}</span>
+        }
+      </div>
     </section>
 
     @if (error()) {
@@ -31,27 +45,48 @@
       <div class="state-message" role="status"><span class="spinner"></span> Cargando afiliados…</div>
     } @else if (pagina() && pagina()!.content.length === 0) {
       <section class="state-message empty-state">
-        <h2>{{ busqueda.value ? 'No hay coincidencias' : 'Aún no hay afiliados registrados' }}</h2>
-        <p>{{ busqueda.value ? 'Prueba con otra identificación, nombre o correo.' : 'Los nuevos registros aparecerán aquí.' }}</p>
+        @if (busqueda.value || estado) {
+          <h2>No hay coincidencias</h2>
+          <p>{{ estado ? 'Ningún afiliado ' + (busqueda.value ? 'que coincida con la búsqueda ' : '') + 'está en «' + etiquetaEstado(estado) + '».' : 'Prueba con otra identificación, nombre o correo.' }}</p>
+          <button class="quiet-button" type="button" (click)="limpiarFiltros()">Limpiar filtros</button>
+        } @else {
+          <h2>Aún no hay afiliados registrados</h2>
+          <p>Los nuevos registros aparecerán aquí.</p>
+          <a class="primary-button" routerLink="/afiliados/registro">+ Registrar el primero</a>
+        }
       </section>
     } @else if (pagina()) {
-      <div class="table-wrap">
+      <div class="table-wrap" [class.reloading]="cargando()">
         <table class="affiliate-table">
-          <thead><tr><th>Identificación</th><th>Nombres</th><th>Apellidos</th><th>Celular</th><th>Email</th><th>Dirección</th><th>Mascotas</th><th>Acciones</th></tr></thead>
+          <thead><tr><th>Afiliado</th><th>Contacto</th><th>Plan</th><th class="numeric">Mascotas</th><th><span class="sr-only">Acciones</span></th></tr></thead>
           <tbody>
             @for (afiliado of pagina()!.content; track afiliado.id) {
+              @let estadoPlan = configuracionEstado(afiliado.estadoPlan);
               <tr>
-                <td data-label="Identificación" class="identifier">{{ afiliado.numeroIdentificacion }}</td>
-                <td data-label="Nombres">{{ afiliado.nombres }}</td>
-                <td data-label="Apellidos">{{ afiliado.apellidos }}</td>
-                <td data-label="Celular">{{ afiliado.celular }}</td>
-                <td data-label="Email">{{ afiliado.correo }}</td>
-                <td data-label="Dirección" class="address-cell">{{ afiliado.direccion }}</td>
-                <td data-label="Mascotas"><span class="pet-count">{{ afiliado.cantidadMascotas }}</span></td>
+                <td data-label="Afiliado">
+                  <a class="affiliate-name" [routerLink]="['/afiliados', afiliado.id]">{{ afiliado.nombres }} {{ afiliado.apellidos }}</a>
+                  <span class="secondary identifier">{{ afiliado.numeroIdentificacion }}</span>
+                </td>
+                <td data-label="Contacto">
+                  <span>{{ afiliado.celular }}</span>
+                  <span class="secondary">{{ afiliado.correo }}</span>
+                </td>
+                <td data-label="Plan">
+                  @if (afiliado.plan) {
+                    <span>{{ afiliado.plan }}</span>
+                    <span class="plan-status" [class]="'plan-status status-' + estadoPlan.clase"><span class="dot" [class]="'dot dot-' + estadoPlan.clase" aria-hidden="true"></span>{{ estadoPlan.etiqueta }}</span>
+                  } @else {
+                    <a class="assign-plan" [routerLink]="['/afiliados', afiliado.id]" [queryParams]="{ seccion: 'plan' }">Sin plan · Asignar</a>
+                  }
+                </td>
+                <td data-label="Mascotas" class="numeric">
+                  <a class="pet-count" [routerLink]="['/afiliados', afiliado.id]" [queryParams]="{ seccion: 'mascotas' }"
+                     [attr.aria-label]="afiliado.cantidadMascotas + ' mascotas de ' + afiliado.nombres">{{ afiliado.cantidadMascotas }}</a>
+                </td>
                 <td data-label="Acciones" class="actions">
-                  <a [routerLink]="['/afiliados', afiliado.id]">Ver</a>
-                  <a [routerLink]="['/afiliados', afiliado.id, 'editar']">Editar</a>
-                  <a [routerLink]="['/afiliados', afiliado.id]" [queryParams]="{ seccion: 'mascotas' }">Mascotas</a>
+                  <a [routerLink]="['/afiliados', afiliado.id, 'editar']" [attr.aria-label]="'Editar a ' + afiliado.nombres + ' ' + afiliado.apellidos">Editar</a>
+                  <span class="actions-divider" aria-hidden="true"></span>
+                  <app-eliminar-afiliado variante="enlace" [afiliadoId]="afiliado.id" [nombre]="afiliado.nombres + ' ' + afiliado.apellidos" (eliminado)="alEliminarAfiliado($event)" />
                 </td>
               </tr>
             }
@@ -59,13 +94,15 @@
         </table>
       </div>
 
-      <footer class="pagination-bar">
-        <span>Página {{ pagina()!.page.number + 1 }} de {{ pagina()!.page.totalPages || 1 }}</span>
-        <div class="pagination-actions">
-          <button class="quiet-button" type="button" [disabled]="pagina()!.page.number === 0 || cargando()" (click)="cargar(pagina()!.page.number - 1)">Anterior</button>
-          <button class="quiet-button" type="button" [disabled]="pagina()!.page.number + 1 >= pagina()!.page.totalPages || cargando()" (click)="cargar(pagina()!.page.number + 1)">Siguiente</button>
-        </div>
-      </footer>
+      @if (pagina()!.page.totalPages > 1) {
+        <footer class="pagination-bar">
+          <span>Página {{ pagina()!.page.number + 1 }} de {{ pagina()!.page.totalPages }}</span>
+          <div class="pagination-actions">
+            <button class="quiet-button" type="button" [disabled]="pagina()!.page.number === 0 || cargando()" (click)="cargar(pagina()!.page.number - 1)">← Anterior</button>
+            <button class="quiet-button" type="button" [disabled]="pagina()!.page.number + 1 >= pagina()!.page.totalPages || cargando()" (click)="cargar(pagina()!.page.number + 1)">Siguiente →</button>
+          </div>
+        </footer>
+      }
     }
   </main>
 </div>

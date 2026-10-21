@@ -1,12 +1,16 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, DestroyRef, inject, OnInit } from '@angular/core';
 import { AbstractControl, FormControl, FormGroup, ReactiveFormsModule, ValidationErrors, ValidatorFn, Validators } from '@angular/forms';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { forkJoin } from 'rxjs';
 import { AfiliadoDetalle, ApiErrorResponse, CrearMascotaRequest, CrearMascotaResponse, ESPECIES_MASCOTA } from '../../models/afiliado.models';
 import { AfiliadoApiService } from '../../services/afiliado-api.service';
 import { AfiliadoTabsComponent } from '../../components/afiliado-tabs/afiliado-tabs.component';
+import { AutorizacionDatosComponent } from '../../../privacidad/components/autorizacion-datos/autorizacion-datos.component';
+import { EliminarAfiliadoComponent } from '../../components/eliminar-afiliado/eliminar-afiliado.component';
+import { PermitirCaracteresDirective } from '../../../../core/validation/permitir-caracteres.directive';
+import { SOLO_PALABRAS } from '../../../../core/validation/campos';
 
 const integerValidator: ValidatorFn = (control: AbstractControl): ValidationErrors | null =>
   control.value === null || Number.isInteger(control.value) ? null : { integer: true };
@@ -14,22 +18,23 @@ const integerValidator: ValidatorFn = (control: AbstractControl): ValidationErro
 @Component({
   selector: 'app-detalle-afiliado',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink, AfiliadoTabsComponent],
+  imports: [ReactiveFormsModule, RouterLink, AfiliadoTabsComponent, EliminarAfiliadoComponent, PermitirCaracteresDirective, AutorizacionDatosComponent],
   templateUrl: './detalle-afiliado.component.html',
   styleUrl: './detalle-afiliado.component.scss'
 })
 export class DetalleAfiliadoComponent implements OnInit {
   private readonly api = inject(AfiliadoApiService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly especies = ESPECIES_MASCOTA;
   readonly mascotaForm = new FormGroup({
-    nombre: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.maxLength(100)] }),
+    nombre: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.pattern(SOLO_PALABRAS), Validators.maxLength(100)] }),
     especie: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
-    raza: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.maxLength(100)] }),
+    raza: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.pattern(SOLO_PALABRAS), Validators.maxLength(100)] }),
     edad: new FormControl<number | null>(null, { validators: [Validators.required, Validators.min(0), Validators.max(100), integerValidator] }),
-    color: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.maxLength(50)] })
+    color: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.pattern(SOLO_PALABRAS), Validators.maxLength(50)] })
   });
 
   afiliado: AfiliadoDetalle | null = null;
@@ -123,11 +128,33 @@ export class DetalleAfiliadoComponent implements OnInit {
     });
   }
 
+  private erroresMascota(): string[] {
+    const { nombre, especie, raza, edad, color } = this.mascotaForm.controls;
+    const errores: string[] = [];
+    const palabras = (control: FormControl<string>, campo: string, maximo: number) => {
+      if (control.hasError('required')) errores.push(`${campo} es obligatorio.`);
+      else if (control.hasError('pattern')) errores.push(`${campo} solo puede contener letras y espacios.`);
+      else if (control.hasError('maxlength')) errores.push(`${campo} no puede superar los ${maximo} caracteres.`);
+    };
+    palabras(nombre, 'El nombre', 100);
+    if (especie.invalid) errores.push('Selecciona una especie.');
+    palabras(raza, 'La raza', 100);
+    if (edad.hasError('required')) errores.push('La edad es obligatoria.');
+    else if (edad.invalid) errores.push('La edad debe ser un número entero entre 0 y 100.');
+    palabras(color, 'El color', 50);
+    return errores;
+  }
+
+  alEliminarAfiliado(nombre: string): void {
+    void this.router.navigate(['/afiliados'], { state: { afiliadoEliminado: nombre } });
+  }
+
   guardarMascota(): void {
     this.errorFormulario = '';
     this.exito = '';
     if (this.mascotaForm.invalid) {
       this.mascotaForm.markAllAsTouched();
+      this.errorFormulario = this.erroresMascota().join(' ');
       return;
     }
     const value = this.mascotaForm.getRawValue();

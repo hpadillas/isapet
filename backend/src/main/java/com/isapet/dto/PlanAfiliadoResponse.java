@@ -18,7 +18,18 @@ public record PlanAfiliadoResponse(
         LocalDate versionVigenteDesde,
         List<MascotaCubiertaResponse> mascotasCubiertas,
         List<BeneficioServicioResponse> beneficios,
-        long bonosCompradosMes,
-        Integer bonosDisponiblesMes
+        LocalDate periodoDesde,
+        LocalDate periodoHasta,
+        int atencionesIncluidasUsadas,
+        Integer atencionesIncluidasRestantes,
+        List<PrestacionResponse> atencionesIncluidasPeriodo,
+        List<BonoResponse> bonosPeriodo,
+        CambioPlanProgramadoResponse cambioProgramado,
+        /** PENDIENTE_ACTIVACION (sin pagar la primera cuota), ACTIVO, o SUSPENDIDO (cuota con el plazo vencido). */
+        String estado,
+        /** Último día del plan si el afiliado lo canceló; null si no hay cancelación programada. */
+        LocalDate fechaFin,
+        /** Cuota pendiente más antigua (con su fecha límite de pago), si la hay. */
+        CuotaPlanResponse cuotaPendiente
 ) {
 }

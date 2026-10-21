@@ -65,6 +65,19 @@ public class Bono {
             Plan plan,
             TarifaBono tarifa,
             OffsetDateTime fechaCompra) {
+        this(afiliado, mascota, servicio, plan, tarifa, fechaCompra, false);
+    }
+
+    /** {@code pendienteDePago}: comprado en línea; queda disponible cuando la pasarela confirme el pago. */
+    public Bono(
+            Afiliado afiliado,
+            Mascota mascota,
+            ServicioVeterinario servicio,
+            Plan plan,
+            TarifaBono tarifa,
+            OffsetDateTime fechaCompra,
+            boolean pendienteDePago) {
+        this.estado = pendienteDePago ? EstadoBono.PENDIENTE_PAGO : EstadoBono.DISPONIBLE;
         this.afiliado = afiliado;
         this.mascota = mascota;
         this.servicio = servicio;
@@ -77,6 +90,20 @@ public class Bono {
 
     public boolean estaDisponible() {
         return estado == EstadoBono.DISPONIBLE;
+    }
+
+    public void confirmarPago() {
+        if (estado != EstadoBono.PENDIENTE_PAGO) {
+            throw new IllegalStateException("El bono no está pendiente de pago.");
+        }
+        estado = EstadoBono.DISPONIBLE;
+    }
+
+    public void anularPorPagoRechazado() {
+        if (estado != EstadoBono.PENDIENTE_PAGO) {
+            throw new IllegalStateException("El bono no está pendiente de pago.");
+        }
+        estado = EstadoBono.ANULADO;
     }
 
     public void marcarUsado() {

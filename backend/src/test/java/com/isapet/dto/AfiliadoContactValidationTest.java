@@ -36,12 +36,12 @@ class AfiliadoContactValidationTest {
     }
 
     @Test
-    void apellidosUsanLaMismaReglaUnicodeDeNombres() {
-        for (String value : new String[]{"Pérez", "Gómez", "De la Cruz", "6", "Pérez 6"}) {
+    void apellidosSoloAdmitenLetrasYEspaciosSinLaExcepcionDelSeis() {
+        for (String value : new String[]{"Pérez", "Gómez", "De la Cruz", "Ñusta"}) {
             assertThat(valid(create("123", "Juan", value, "3001234567", "usuario@gmail.com", "Calle 1")))
                     .as("apellido %s", value).isTrue();
         }
-        for (String value : new String[]{"Perez2", "Gomez@", "De-la-Cruz", "Gomez_1"}) {
+        for (String value : new String[]{"6", "Pérez 6", "Perez2", "Gomez@", "De-la-Cruz", "Gomez_1"}) {
             assertThat(valid(create("123", "Juan", value, "3001234567", "usuario@gmail.com", "Calle 1")))
                     .as("apellido %s", value).isFalse();
         }
@@ -79,6 +79,6 @@ class AfiliadoContactValidationTest {
     }
 
     private CrearAfiliadoRequest create(String document, String names, String surnames, String phone, String email, String address) {
-        return new CrearAfiliadoRequest(document, names, surnames, phone, email, address);
+        return new CrearAfiliadoRequest(document, names, surnames, phone, email, address, true);
     }
 }

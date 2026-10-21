@@ -11,6 +11,7 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
       <a [routerLink]="['/afiliados', afiliadoId, 'plan']" routerLinkActive="active">Plan</a>
       <a [routerLink]="['/afiliados', afiliadoId, 'bonos']" routerLinkActive="active">Bonos</a>
       <a [routerLink]="['/afiliados', afiliadoId, 'prestaciones']" routerLinkActive="active">Prestaciones</a>
+      <a [routerLink]="['/afiliados', afiliadoId, 'pagos']" routerLinkActive="active">Pagos</a>
     </nav>
   `
 })

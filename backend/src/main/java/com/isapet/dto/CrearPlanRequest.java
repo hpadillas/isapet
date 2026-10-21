@@ -1,5 +1,8 @@
 package com.isapet.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.isapet.validation.Patrones;
+import com.isapet.validation.StrictIntegerDeserializer;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
@@ -18,6 +21,7 @@ public record CrearPlanRequest(
         String codigo,
 
         @NotBlank(message = "El nombre del plan es obligatorio.")
+        @Pattern(regexp = Patrones.SOLO_PALABRAS, message = "El nombre del plan solo puede contener letras y espacios.")
         @Size(max = 100, message = "El nombre no puede superar los 100 caracteres.")
         String nombre,
 
@@ -28,9 +32,11 @@ public record CrearPlanRequest(
 
         @NotNull(message = "El máximo de mascotas es obligatorio.")
         @Positive(message = "El máximo de mascotas debe ser mayor que cero.")
+        @JsonDeserialize(using = StrictIntegerDeserializer.class)
         Integer maximoMascotas,
 
         @Positive(message = "El límite de atenciones debe ser mayor que cero o nulo para ilimitado.")
+        @JsonDeserialize(using = StrictIntegerDeserializer.class)
         Integer limiteAtenciones,
 
         @NotNull(message = "La fecha de vigencia es obligatoria.")

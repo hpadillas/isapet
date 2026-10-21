@@ -1,4 +1,13 @@
-export type EstadoBono = 'DISPONIBLE' | 'USADO';
+import { MedioPago } from '../../pagos/models/pago.models';
+
+export type EstadoBono = 'PENDIENTE_PAGO' | 'DISPONIBLE' | 'USADO' | 'ANULADO';
+
+export const ETIQUETA_ESTADO_BONO: Record<EstadoBono, string> = {
+  PENDIENTE_PAGO: 'Pendiente de pago',
+  DISPONIBLE: 'Disponible',
+  USADO: 'Usado',
+  ANULADO: 'Anulado'
+};
 
 export interface Bono {
   id: number;
@@ -26,10 +35,11 @@ export interface CotizacionBono {
   porcentajeDescuento: number;
   valorAPagar: number;
   ahorro: number;
-  bonosDisponiblesMes: number | null;
 }
 
 export interface CompraBonoRequest {
   mascotaId: number;
+  /** Medio con el que pagó en ISAPET; los pagos en línea usan la pasarela. */
+  medioPago: MedioPago;
   servicioId: number;
 }

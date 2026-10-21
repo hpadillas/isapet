@@ -1,6 +1,7 @@
 package com.isapet.dto;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.isapet.validation.Patrones;
 import com.isapet.validation.StrictIntegerDeserializer;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -11,6 +12,7 @@ import jakarta.validation.constraints.Size;
 
 public record CrearMascotaRequest(
         @NotBlank(message = "El nombre de la mascota es obligatorio.")
+        @Pattern(regexp = Patrones.SOLO_PALABRAS, message = "El nombre de la mascota solo puede contener letras y espacios.")
         @Size(max = 100, message = "El nombre de la mascota no puede superar los 100 caracteres.")
         String nombre,
 
@@ -21,6 +23,7 @@ public record CrearMascotaRequest(
         String especie,
 
         @NotBlank(message = "La raza es obligatoria.")
+        @Pattern(regexp = Patrones.SOLO_PALABRAS, message = "La raza solo puede contener letras y espacios.")
         @Size(max = 100, message = "La raza no puede superar los 100 caracteres.")
         String raza,
 
@@ -31,6 +34,7 @@ public record CrearMascotaRequest(
         Integer edad,
 
         @NotBlank(message = "El color es obligatorio.")
+        @Pattern(regexp = Patrones.SOLO_PALABRAS, message = "El color solo puede contener letras y espacios.")
         @Size(max = 50, message = "El color no puede superar los 50 caracteres.")
         String color
 ) {

@@ -30,7 +30,7 @@ class AfiliadoSinMascotaTest {
     void registraAfiliadoSinCrearMascotasAutomaticamente() {
         String identificacion = "F01-NP-" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
         CrearAfiliadoResponse response = afiliadoService.crear(new CrearAfiliadoRequest(
-                identificacion, "Ana", "Gomez", "3001234567", "ana@example.com", "Calle 1"));
+                identificacion, "Ana", "Gomez", "3001234567", "ana@example.com", "Calle 1", true));
 
         assertThat(afiliadoRepository.findById(response.id())).isPresent();
         assertThat(mascotaRepository.findAll())

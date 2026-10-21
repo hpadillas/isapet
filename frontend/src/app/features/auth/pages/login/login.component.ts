@@ -71,7 +71,7 @@ export class LoginComponent implements OnInit {
     if (requestedUrl?.startsWith('/') && !requestedUrl.startsWith('//')) {
       return requestedUrl;
     }
-    return '/afiliados';
+    return '/';
   }
 
   private loginError(error: unknown): string {

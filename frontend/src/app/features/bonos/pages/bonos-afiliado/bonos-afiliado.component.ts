@@ -3,7 +3,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, DestroyRef, inject, OnInit } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { catchError, forkJoin, of, throwError } from 'rxjs';
 import { formatearPesos, mensajeError } from '../../../../core/format/moneda';
 import { AfiliadoTabsComponent } from '../../../afiliados/components/afiliado-tabs/afiliado-tabs.component';
@@ -12,7 +12,9 @@ import { AfiliadoApiService } from '../../../afiliados/services/afiliado-api.ser
 import { PlanAfiliado, ServicioVeterinario } from '../../../planes/models/afiliacion.models';
 import { AfiliacionApiService } from '../../../planes/services/afiliacion-api.service';
 import { SimulacionApiService } from '../../../planes/services/simulacion-api.service';
-import { Bono, CotizacionBono } from '../../models/bono.models';
+import { MEDIOS_PAGO, MedioPago } from '../../../pagos/models/pago.models';
+import { PagoApiService } from '../../../pagos/services/pago-api.service';
+import { Bono, CotizacionBono, ETIQUETA_ESTADO_BONO } from '../../models/bono.models';
 import { BonoApiService } from '../../services/bono-api.service';
 
 @Component({
@@ -27,6 +29,8 @@ export class BonosAfiliadoComponent implements OnInit {
   private readonly simulacionApi = inject(SimulacionApiService);
   private readonly bonoApi = inject(BonoApiService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  private readonly pagoApi = inject(PagoApiService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly formatearPesos = formatearPesos;
@@ -34,6 +38,11 @@ export class BonosAfiliadoComponent implements OnInit {
     mascotaId: new FormControl<number | null>(null, { validators: [Validators.required] }),
     servicioId: new FormControl<number | null>(null, { validators: [Validators.required] })
   });
+  /** Forma de pago: separada de la compra para no volver a cotizar al cambiarla. */
+  readonly formaPago = new FormControl<'ISAPET' | 'EN_LINEA'>('ISAPET', { nonNullable: true });
+  readonly medioPago = new FormControl<MedioPago>('EFECTIVO', { nonNullable: true });
+  readonly mediosPago = MEDIOS_PAGO;
+  readonly etiquetaEstado = ETIQUETA_ESTADO_BONO;
 
   afiliadoId = 0;
   afiliado: AfiliadoDetalle | null = null;
@@ -54,6 +63,14 @@ export class BonosAfiliadoComponent implements OnInit {
       this.cargar();
     });
     this.compraForm.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cotizar());
+    // Resultado al volver de la pasarela (?pago=APROBADO&ref=...).
+    const resultado = this.route.snapshot.queryParamMap.get('pago');
+    const referencia = this.route.snapshot.queryParamMap.get('ref');
+    if (resultado === 'APROBADO') {
+      this.exito = `Pago en línea ${referencia} aprobado: el bono ya está disponible.`;
+    } else if (resultado === 'RECHAZADO') {
+      this.errorCompra = `La pasarela rechazó el pago ${referencia}: el bono quedó anulado. Puedes intentar la compra de nuevo.`;
+    }
   }
 
   cargar(): void {
@@ -110,7 +127,17 @@ export class BonosAfiliadoComponent implements OnInit {
     }
     this.comprando = true;
     this.exito = '';
-    this.bonoApi.comprar(this.afiliadoId, { mascotaId, servicioId }).subscribe({
+    if (this.formaPago.value === 'EN_LINEA') {
+      this.pagoApi.comprarBonoEnLinea(this.afiliadoId, mascotaId, servicioId).subscribe({
+        next: sesion => void this.router.navigateByUrl(sesion.urlPago),
+        error: error => {
+          this.errorCompra = mensajeError(error, 'No se pudo abrir la pasarela de pagos.');
+          this.comprando = false;
+        }
+      });
+      return;
+    }
+    this.bonoApi.comprar(this.afiliadoId, { mascotaId, servicioId, medioPago: this.medioPago.value }).subscribe({
       next: bono => {
         this.bonos = [bono, ...this.bonos];
         this.exito = `Bono ${bono.codigo} comprado por ${formatearPesos(bono.valorPagado)}.`;

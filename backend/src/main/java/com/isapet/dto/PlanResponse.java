@@ -7,6 +7,8 @@ public record PlanResponse(
         String codigo,
         String nombre,
         boolean activo,
-        List<VersionPlanResponse> versiones
+        List<VersionPlanResponse> versiones,
+        /** Descuento del plan en cada servicio activo (valor del bono con plan). */
+        List<BeneficioServicioResponse> beneficios
 ) {
 }

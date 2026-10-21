@@ -1,6 +1,6 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { AfiliadoApiService } from './afiliado-api.service';
-import { AfiliadoListaItem, AfiliadoDetalle, CrearAfiliadoRequest, Pagina } from '../models/afiliado.models';
+import { AfiliadoListaItem, AfiliadoDetalle, CrearAfiliadoRequest, Pagina, EstadoPlanAfiliado } from '../models/afiliado.models';
 
 export interface AfiliadosState {
   pagina: Pagina<AfiliadoListaItem> | null;
@@ -28,10 +28,10 @@ export class AfiliadosStore {
   readonly selectedAfiliado = computed(() => this.state().selectedAfiliado);
 
   // Acciones (Mutan el estado)
-  async cargarAfiliados(busqueda: string = '', page: number = 0) {
+  async cargarAfiliados(busqueda: string = '', page: number = 0, estado: EstadoPlanAfiliado | '' = '') {
     this.state.update(s => ({ ...s, loading: true, error: null }));
     
-    this.api.listarAfiliados(busqueda, page).subscribe({
+    this.api.listarAfiliados(busqueda, page, estado).subscribe({
       next: (paginaResult) => {
         this.state.update(s => ({ 
           ...s, 

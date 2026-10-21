@@ -1,8 +1,10 @@
 package com.isapet.service;
 
 import com.isapet.dto.BonoResponse;
+import com.isapet.dto.CompraBonoEnLineaRequest;
 import com.isapet.dto.CompraBonoRequest;
 import com.isapet.dto.CotizacionBonoResponse;
+import com.isapet.dto.PagoEnLineaResponse;
 import com.isapet.entity.Afiliacion;
 import com.isapet.entity.Bono;
 import com.isapet.entity.Mascota;
@@ -17,7 +19,9 @@ import com.isapet.mapper.BonoPrestacionMapper;
 import com.isapet.repository.AfiliacionRepository;
 import com.isapet.repository.AfiliadoRepository;
 import com.isapet.repository.BonoRepository;
+import com.isapet.repository.CuotaPlanRepository;
 import com.isapet.repository.MascotaRepository;
+import com.isapet.repository.PrestacionRepository;
 import com.isapet.repository.ServicioVeterinarioRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,6 +40,9 @@ public class BonoService {
     private final MascotaRepository mascotaRepository;
     private final ServicioVeterinarioRepository servicioRepository;
     private final BonoRepository bonoRepository;
+    private final PrestacionRepository prestacionRepository;
+    private final CuotaPlanRepository cuotaRepository;
+    private final PagoService pagoService;
     private final BeneficiosPlanResolver beneficiosResolver;
     private final BonoPrestacionMapper mapper;
     private final Clock clock;
@@ -46,6 +53,9 @@ public class BonoService {
             MascotaRepository mascotaRepository,
             ServicioVeterinarioRepository servicioRepository,
             BonoRepository bonoRepository,
+            PrestacionRepository prestacionRepository,
+            CuotaPlanRepository cuotaRepository,
+            PagoService pagoService,
             BeneficiosPlanResolver beneficiosResolver,
             BonoPrestacionMapper mapper,
             Clock clock) {
@@ -54,6 +64,9 @@ public class BonoService {
         this.mascotaRepository = mascotaRepository;
         this.servicioRepository = servicioRepository;
         this.bonoRepository = bonoRepository;
+        this.prestacionRepository = prestacionRepository;
+        this.cuotaRepository = cuotaRepository;
+        this.pagoService = pagoService;
         this.beneficiosResolver = beneficiosResolver;
         this.mapper = mapper;
         this.clock = clock;
@@ -83,13 +96,12 @@ public class BonoService {
                 tarifa.valorBase(),
                 tarifa.porcentajeDescuento(),
                 tarifa.valorAPagar(),
-                tarifa.ahorro(),
-                elegibilidad.bonosDisponiblesMes());
+                tarifa.ahorro());
     }
 
     @Transactional
     public BonoResponse comprar(Long afiliadoId, CompraBonoRequest request) {
-        // El bloqueo sobre la afiliación serializa compras concurrentes y protege el límite mensual.
+        // El bloqueo sobre la afiliación serializa la compra con el registro de atenciones incluidas.
         Elegibilidad elegibilidad = evaluar(afiliadoId, request.mascotaId(), request.servicioId(),
                 afiliacionRepository.findByAfiliadoIdForUpdate(afiliadoId));
         Afiliacion afiliacion = elegibilidad.afiliacion();
@@ -100,7 +112,28 @@ public class BonoService {
                 afiliacion.getPlan(),
                 elegibilidad.tarifa(),
                 OffsetDateTime.now(clock)));
+        pagoService.registrarManualBono(bono, request.medioPago());
         return mapper.toResponse(bono);
+    }
+
+    /**
+     * Compra pagada en línea: el bono queda pendiente de pago y se abre la sesión en la pasarela.
+     * Solo se puede usar cuando la pasarela confirme el pago; si lo rechaza, el bono se anula.
+     */
+    @Transactional
+    public PagoEnLineaResponse comprarEnLinea(Long afiliadoId, CompraBonoEnLineaRequest request) {
+        Elegibilidad elegibilidad = evaluar(afiliadoId, request.mascotaId(), request.servicioId(),
+                afiliacionRepository.findByAfiliadoIdForUpdate(afiliadoId));
+        Afiliacion afiliacion = elegibilidad.afiliacion();
+        Bono bono = bonoRepository.saveAndFlush(new Bono(
+                afiliacion.getAfiliado(),
+                elegibilidad.mascota(),
+                elegibilidad.servicio(),
+                afiliacion.getPlan(),
+                elegibilidad.tarifa(),
+                OffsetDateTime.now(clock),
+                true));
+        return pagoService.iniciarPagoBono(bono);
     }
 
     private Elegibilidad evaluar(
@@ -133,29 +166,37 @@ public class BonoService {
                 .orElseThrow(() -> new BusinessRuleException(
                         "El plan del afiliado no tiene condiciones comerciales vigentes a la fecha."));
 
-        Integer disponibles = null;
-        if (version.getLimiteAtenciones() != null) {
-            PeriodoMensual mes = PeriodoMensual.actual(clock);
-            long compradosMes = bonoRepository.countByAfiliadoIdAndFechaCompraGreaterThanEqualAndFechaCompraLessThan(
-                    afiliadoId, mes.desde(), mes.hastaExclusiva());
-            disponibles = (int) Math.max(0, version.getLimiteAtenciones() - compradosMes);
-            if (disponibles == 0) {
-                throw new BusinessRuleException("El afiliado alcanzó el límite de %d atenciones de su plan este mes."
-                        .formatted(version.getLimiteAtenciones()));
-            }
+        if (afiliacion.isPendienteActivacion()) {
+            throw new BusinessRuleException("El plan aún no está activo: se activa al pagar su primera cuota.");
+        }
+        if (cuotaRepository.planSuspendido(afiliadoId, LocalDate.now(clock))) {
+            throw new BusinessRuleException("El plan está suspendido por falta de pago. "
+                    + "Registra el pago de la cuota vencida para reactivarlo y poder comprar bonos.");
+        }
+        // Los bonos pagan atenciones adicionales: solo se venden cuando se agotan las incluidas del periodo.
+        Integer limite = version.getLimiteAtenciones();
+        if (limite == null) {
+            throw new BusinessRuleException("El plan " + afiliacion.getPlan().getNombre()
+                    + " incluye atenciones ilimitadas; no es necesario comprar bonos.");
+        }
+        PeriodoAfiliacion periodo = PeriodoAfiliacion.queContiene(afiliacion.getFechaInicio(), LocalDate.now(clock));
+        long usadas = prestacionRepository.contarIncluidasEnPlan(afiliadoId, periodo.desde(), periodo.hastaExclusiva());
+        if (usadas < limite) {
+            throw new BusinessRuleException(("Al afiliado le quedan %d de %d atenciones incluidas en su plan en el periodo "
+                    + "actual (hasta el %s); los bonos se compran cuando se agoten.")
+                    .formatted(limite - usadas, limite, periodo.hasta()));
         }
 
         TarifaBono tarifa = TarifaBono.calcular(
                 servicio.getValorBase(),
                 beneficiosResolver.porcentajeDescuento(planId, servicio.getId()));
-        return new Elegibilidad(afiliacion, mascota, servicio, tarifa, disponibles);
+        return new Elegibilidad(afiliacion, mascota, servicio, tarifa);
     }
 
     private record Elegibilidad(
             Afiliacion afiliacion,
             Mascota mascota,
             ServicioVeterinario servicio,
-            TarifaBono tarifa,
-            Integer bonosDisponiblesMes) {
+            TarifaBono tarifa) {
     }
 }

@@ -81,7 +81,7 @@
               <p class="estimate">{{ formatearPesos(opcion.valorMensualEstimado) }} <span>estimado al mes</span></p>
               <dl class="facts">
                 <div><dt>Mascotas</dt><dd>Hasta {{ opcion.maximoMascotas }}</dd></div>
-                <div><dt>Atenciones con descuento</dt><dd>{{ opcion.atencionesIlimitadas ? 'Ilimitadas' : opcion.limiteAtenciones + ' / mes' }}</dd></div>
+                <div><dt>Atenciones incluidas</dt><dd>{{ opcion.atencionesIlimitadas ? 'Ilimitadas' : opcion.limiteAtenciones + ' / mes' }}</dd></div>
                 <div><dt>Servicios con plan</dt><dd>{{ formatearPesos(opcion.costoServiciosConPlan) }}</dd></div>
                 <div><dt>Servicios sin plan</dt><dd>{{ formatearPesos(opcion.costoServiciosSinPlan) }}</dd></div>
               </dl>
@@ -108,7 +108,7 @@
             </article>
           }
         </div>
-        <p class="footnote">Valores estimados con la versión comercial vigente. Las atenciones por encima del límite mensual se calculan a valor pleno.</p>
+        <p class="footnote">Valores estimados con la versión comercial vigente. Las atenciones incluidas en el plan no tienen costo; las adicionales se calculan con bonos al valor con descuento.</p>
       </section>
     </div>
   </div>

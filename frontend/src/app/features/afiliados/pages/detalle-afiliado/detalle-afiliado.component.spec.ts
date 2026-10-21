@@ -23,7 +23,13 @@ describe('DetalleAfiliadoComponent', () => {
     fixture = TestBed.createComponent(DetalleAfiliadoComponent);
   });
 
-  afterEach(() => http.verify());
+  afterEach(() => {
+    // El bloque de autorización de datos personales consulta su propio estado.
+    http.match(req => req.url.endsWith('/autorizacion-datos')).forEach(req => req.flush({
+      registrada: true, versionPolitica: '1.0', otorgadaEn: '2026-10-21T10:00:00Z', registradaPor: 'admin', medio: 'Formulario'
+    }));
+    http.verify();
+  });
 
   it('muestra el detalle y mensaje cuando el afiliado no tiene mascotas', () => {
     fixture.detectChanges();

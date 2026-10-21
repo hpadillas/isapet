@@ -38,6 +38,7 @@ public class BonoPrestacionMapper {
                 prestacion.getServicio().getTipo().name(),
                 prestacion.getPrestador(),
                 prestacion.getObservaciones(),
+                prestacion.getCobertura().name(),
                 bono == null ? null : bono.getId(),
                 bono == null ? null : bono.getCodigo(),
                 bono == null ? null : bono.getValorPagado());

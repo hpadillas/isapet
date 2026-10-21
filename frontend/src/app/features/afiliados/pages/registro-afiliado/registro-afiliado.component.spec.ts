@@ -1,4 +1,5 @@
 import { provideHttpClient } from '@angular/common/http';
+import { provideRouter } from '@angular/router';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import {
@@ -27,16 +28,34 @@ describe('RegistroAfiliadoComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [RegistroAfiliadoComponent],
-      providers: [provideHttpClient(), provideHttpClientTesting()]
+      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()]
     }).compileComponents();
 
     fixture = TestBed.createComponent(RegistroAfiliadoComponent);
     component = fixture.componentInstance;
     httpTesting = TestBed.inject(HttpTestingController);
     fixture.detectChanges();
+    httpTesting.expectOne('/api/v1/privacidad').flush(politica());
+    fixture.detectChanges();
   });
 
   afterEach(() => httpTesting.verify());
+
+  it('muestra el aviso de privacidad y exige la autorización del titular (Ley 1581 de 2012)', () => {
+    const texto = fixture.nativeElement.textContent as string;
+    expect(texto).toContain('Tratamiento de datos personales');
+    expect(texto).toContain('ISAPET');
+    expect(texto).toContain('NIT 900.000.000-1');
+    expect(texto).toContain('Registrar y administrar la afiliación.');
+    expect(texto).toContain('datos@isapet.co');
+    expect(texto).toContain('10 días hábiles');
+
+    component.afiliadoForm.patchValue({ ...affiliateRequest(), autorizaTratamientoDatos: false });
+    component.registrarAfiliado();
+    httpTesting.expectNone('/api/v1/afiliados');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Sin la autorización del titular no se puede registrar el afiliado.');
+  });
 
   it('no envía el afiliado si los campos obligatorios están vacíos', () => {
     component.registrarAfiliado();
@@ -83,7 +102,7 @@ describe('RegistroAfiliadoComponent', () => {
     const messages = fixture.nativeElement.textContent as string;
     expect(messages).toContain('El documento solo puede contener números.');
     expect(messages).toContain('El nombre solo puede contener letras, espacios y el número 6.');
-    expect(messages).toContain('El apellido solo puede contener letras, espacios y el número 6.');
+    expect(messages).toContain('El apellido solo puede contener letras y espacios.');
     expect(messages).toContain('El celular solo puede contener números.');
     expect(messages).toContain('Ingresa un correo electrónico válido.');
   });
@@ -91,7 +110,7 @@ describe('RegistroAfiliadoComponent', () => {
   it('aplica caracteres permitidos a documento, nombres, apellidos y celular', () => {
     component.afiliadoForm.patchValue({
       numeroIdentificacion: '123456789', nombres: '6', apellidos: 'De la Cruz',
-      celular: '3001234567', correo: 'usuario@gmail.com', direccion: 'Calle 10 # 20-30'
+      celular: '3001234567', correo: 'usuario@gmail.com', direccion: 'Calle 10 # 20-30', autorizaTratamientoDatos: true
     });
     expect(component.afiliadoForm.valid).toBeTrue();
 
@@ -108,6 +127,26 @@ describe('RegistroAfiliadoComponent', () => {
     expect(component.afiliadoForm.controls.apellidos.invalid).toBeTrue();
     expect(component.afiliadoForm.controls.numeroIdentificacion.invalid).toBeTrue();
     expect(component.afiliadoForm.controls.celular.invalid).toBeTrue();
+  });
+
+  it('solo el nombre de persona admite el 6; apellidos y datos de la mascota solo admiten palabras', () => {
+    component.afiliadoForm.controls.apellidos.setValue('6');
+    expect(component.afiliadoForm.controls.apellidos.invalid).toBeTrue();
+
+    const { nombre, raza, color } = component.mascotaForm.controls;
+    nombre.setValue('Señor Bigotes');
+    raza.setValue('Criollo');
+    color.setValue('Café claro');
+    expect(nombre.valid && raza.valid && color.valid).toBeTrue();
+
+    for (const valor of ['Max2', '6', 'Max!']) {
+      nombre.setValue(valor);
+      expect(nombre.invalid).withContext(valor).toBeTrue();
+    }
+    raza.setValue('Labrador 2');
+    color.setValue('#000000');
+    expect(raza.invalid).toBeTrue();
+    expect(color.invalid).toBeTrue();
   });
 
   it('permite la dirección con puntuación y numeración habitual', () => {
@@ -221,7 +260,17 @@ describe('RegistroAfiliadoComponent', () => {
       apellidos: 'Perez',
       celular: '3001234567',
       correo: 'juan@example.com',
-      direccion: 'Calle 1'
+      direccion: 'Calle 1',
+      autorizaTratamientoDatos: true
+    };
+  }
+
+  function politica() {
+    return {
+      version: '1.0', vigenteDesde: '2026-10-21', responsable: 'ISAPET', nit: '900.000.000-1', direccion: 'Calle 10',
+      correo: 'datos@isapet.co', telefono: '6011234567', datosRecolectados: ['Identificación'],
+      finalidades: ['Registrar y administrar la afiliación.'], derechos: ['Conocer, actualizar y rectificar.'],
+      canalAtencion: 'datos@isapet.co', diasHabilesConsultas: 10, diasHabilesReclamos: 15
     };
   }
 

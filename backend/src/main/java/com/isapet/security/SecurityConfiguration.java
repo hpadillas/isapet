@@ -118,7 +118,8 @@ public class SecurityConfiguration {
                         .csrfTokenRepository(csrfTokenRepository)
                         .csrfTokenRequestHandler(csrfTokenRequestHandler)
                         // La simulación es pública, sin sesión ni efectos sobre datos: CSRF no aporta protección.
-                        .ignoringRequestMatchers("/api/v1/simulaciones/**"))
+                        // El webhook lo llama la pasarela (sin sesión); se protege con la firma HMAC.
+                        .ignoringRequestMatchers("/api/v1/simulaciones/**", "/api/v1/pasarela/webhook"))
                 .securityContext(context -> context
                         .securityContextRepository(securityContextRepository))
                 .sessionManagement(session -> session
@@ -132,6 +133,9 @@ public class SecurityConfiguration {
                         .requestMatchers("/api/v1/auth/csrf", "/api/v1/auth/login").permitAll()
                         .requestMatchers("/api/v1/auth/session", "/api/v1/auth/logout").authenticated()
                         .requestMatchers("/api/v1/simulaciones/**").permitAll()
+                        // Aviso de privacidad (Ley 1581): público para que cualquier titular pueda leerlo.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/privacidad").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/pasarela/webhook").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/afiliados/**", "/api/v1/mascotas/**").hasRole("ADMIN")
                         .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()

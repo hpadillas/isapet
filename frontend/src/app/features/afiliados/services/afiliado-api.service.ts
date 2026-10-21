@@ -9,7 +9,9 @@ import {
   AfiliadoListaItem,
   CrearMascotaRequest,
   CrearMascotaResponse,
-  Pagina
+  EstadoPlanAfiliado,
+  Pagina,
+  ResumenEliminacionAfiliado
 } from '../models/afiliado.models';
 
 @Injectable({ providedIn: 'root' })
@@ -21,10 +23,19 @@ export class AfiliadoApiService {
     return this.http.post<CrearAfiliadoResponse>(this.endpoint, request);
   }
 
-  listarAfiliados(busqueda = '', page = 0, size = 10): Observable<Pagina<AfiliadoListaItem>> {
+  listarAfiliados(busqueda = '', page = 0, estado: EstadoPlanAfiliado | '' = '', size = 10): Observable<Pagina<AfiliadoListaItem>> {
     const query = new URLSearchParams({ page: String(page), size: String(size) });
     if (busqueda.trim()) query.set('q', busqueda.trim());
+    if (estado) query.set('estado', estado);
     return this.http.get<Pagina<AfiliadoListaItem>>(`${this.endpoint}?${query.toString()}`);
+  }
+
+  resumenEliminacion(afiliadoId: number): Observable<ResumenEliminacionAfiliado> {
+    return this.http.get<ResumenEliminacionAfiliado>(`${this.endpoint}/${afiliadoId}/eliminacion`);
+  }
+
+  eliminarAfiliado(afiliadoId: number): Observable<void> {
+    return this.http.delete<void>(`${this.endpoint}/${afiliadoId}`);
   }
 
   obtenerAfiliado(afiliadoId: number): Observable<AfiliadoDetalle> {

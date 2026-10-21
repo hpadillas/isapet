@@ -1,6 +1,8 @@
 package com.isapet.controller;
 
+import com.isapet.dto.ActualizarPlanRequest;
 import com.isapet.dto.CrearPlanRequest;
+import com.isapet.dto.ImpactoEliminacionVersionResponse;
 import com.isapet.dto.CrearVersionPlanRequest;
 import com.isapet.dto.PlanResponse;
 import com.isapet.dto.VersionPlanResponse;
@@ -13,6 +15,7 @@ import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -94,6 +97,47 @@ public class PlanAdminController {
             @PathVariable Long planId,
             @Valid @RequestBody CrearVersionPlanRequest request) {
         return planService.publicarVersion(planId, request);
+    }
+
+    @Operation(
+            summary = "Impacto de eliminar una versión programada",
+            description = "Cuántos afiliados tienen programado el cambio a este plan dentro de la vigencia de la versión.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Impacto de la eliminación"),
+            @ApiResponse(responseCode = "404", description = "Plan o versión no encontrados"),
+            @ApiResponse(responseCode = "409", description = "La versión ya empezó o es la única del plan")
+    })
+    @GetMapping("/{planId}/versiones/{versionId}/eliminacion")
+    public ImpactoEliminacionVersionResponse impactoEliminacionVersion(
+            @PathVariable Long planId,
+            @PathVariable Long versionId) {
+        return planService.impactoEliminacionVersion(planId, versionId);
+    }
+
+    @Operation(
+            summary = "Eliminar una versión programada",
+            description = "Solo versiones que aún no empiezan. La versión anterior queda vigente hasta el inicio de la siguiente.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Versión eliminada; devuelve el plan con su historial"),
+            @ApiResponse(responseCode = "404", description = "Plan o versión no encontrados"),
+            @ApiResponse(responseCode = "409", description = "La versión ya empezó o es la única del plan")
+    })
+    @DeleteMapping("/{planId}/versiones/{versionId}")
+    public PlanResponse eliminarVersion(@PathVariable Long planId, @PathVariable Long versionId) {
+        return planService.eliminarVersion(planId, versionId);
+    }
+
+    @Operation(
+            summary = "Actualizar datos del plan",
+            description = "Cambia el nombre del plan de inmediato. Para cambiar precio, mascotas o atenciones se publica una versión.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Plan actualizado"),
+            @ApiResponse(responseCode = "400", description = "Datos inválidos"),
+            @ApiResponse(responseCode = "404", description = "Plan no encontrado")
+    })
+    @PatchMapping("/{planId}")
+    public PlanResponse actualizar(@PathVariable Long planId, @Valid @RequestBody ActualizarPlanRequest request) {
+        return planService.actualizarPlan(planId, request);
     }
 
     @Operation(

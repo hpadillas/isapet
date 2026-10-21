@@ -10,6 +10,7 @@ import com.isapet.exception.DuplicateNumeroIdentificacionException;
 import com.isapet.exception.MascotaNotFoundException;
 import com.isapet.exception.GlobalExceptionHandler;
 import com.isapet.service.AfiliadoService;
+import com.isapet.service.EliminacionAfiliadoService;
 import com.isapet.service.MascotaService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,6 +47,9 @@ class AfiliadoControllerTest {
 
     @MockBean
     private MascotaService mascotaService;
+
+    @MockBean
+    private EliminacionAfiliadoService eliminacionService;
 
     @Test
     void registraAfiliadoSinCrearMascota() throws Exception {
@@ -110,14 +114,17 @@ class AfiliadoControllerTest {
 
     @Test
     void listaAfiliadosConConteoDeMascotasYParametrosDeBusqueda() throws Exception {
-        when(afiliadoService.listar(eq("ana"), any())).thenReturn(new PageImpl<>(
-                java.util.List.of(new AfiliadoListaResponse(7L, "100", "Ana", "Gomez", "3001234567", "ana@example.com", "Calle 1", 2L)),
+        when(afiliadoService.listar(eq("ana"), any(), any())).thenReturn(new PageImpl<>(
+                java.util.List.of(new AfiliadoListaResponse(7L, "100", "Ana", "Gomez", "3001234567", "ana@example.com", "Calle 1", 2L,
+                        "Básico", "ACTIVO")),
                 PageRequest.of(0, 10), 1));
 
         mockMvc.perform(get("/api/v1/afiliados?q=ana&page=0&size=10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].numeroIdentificacion").value("100"))
                 .andExpect(jsonPath("$.content[0].cantidadMascotas").value(2))
+                .andExpect(jsonPath("$.content[0].plan").value("Básico"))
+                .andExpect(jsonPath("$.content[0].estadoPlan").value("ACTIVO"))
                 .andExpect(jsonPath("$.page.totalElements").value(1));
     }
 
@@ -273,7 +280,8 @@ class AfiliadoControllerTest {
                   "apellidos": "Gomez",
                   "celular": "3001234567",
                   "correo": "ana@example.com",
-                  "direccion": "Calle 1"
+                  "direccion": "Calle 1",
+                  "autorizaTratamientoDatos": true
                 }
                 """;
     }

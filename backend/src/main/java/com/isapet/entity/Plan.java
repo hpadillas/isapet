@@ -46,6 +46,14 @@ public class Plan {
         versiones.add(version);
     }
 
+    public void quitarVersion(VersionPlan version) {
+        versiones.remove(version);
+    }
+
+    public void renombrar(String nuevoNombre) {
+        this.nombre = nuevoNombre;
+    }
+
     public void desactivar() {
         activo = false;
     }

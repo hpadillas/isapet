@@ -14,6 +14,7 @@ import com.isapet.dto.SimulacionPlanRequest;
 import com.isapet.dto.SimulacionPlanResponse;
 import com.isapet.entity.Afiliado;
 import com.isapet.entity.Mascota;
+import com.isapet.entity.MedioPago;
 import com.isapet.entity.Plan;
 import com.isapet.entity.ServicioVeterinario;
 import com.isapet.exception.AfiliacionNotFoundException;
@@ -24,6 +25,8 @@ import com.isapet.repository.PlanRepository;
 import com.isapet.repository.ServicioVeterinarioRepository;
 import com.isapet.service.AfiliacionService;
 import com.isapet.service.BonoService;
+import com.isapet.service.CuotaPlanService;
+import com.isapet.service.EventoAfiliado;
 import com.isapet.service.PrestacionService;
 import com.isapet.service.SimulacionPlanService;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,13 +35,17 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -52,6 +59,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
+@RecordApplicationEvents
 class AfiliacionBonosPrestacionesIntegrationTest {
 
     @Autowired private MockMvc mockMvc;
@@ -63,6 +71,8 @@ class AfiliacionBonosPrestacionesIntegrationTest {
     @Autowired private AfiliacionService afiliacionService;
     @Autowired private BonoService bonoService;
     @Autowired private PrestacionService prestacionService;
+    @Autowired private CuotaPlanService cuotaService;
+    @Autowired private ApplicationEvents eventos;
 
     private Afiliado afiliado;
     private Mascota rocky;
@@ -84,8 +94,8 @@ class AfiliacionBonosPrestacionesIntegrationTest {
                 1, List.of(new ServicioEstimadoRequest(servicio("CONSULTA_GENERAL").getId(), 1))));
 
         OpcionPlanSimuladaResponse basico = opcion(resultado, "BASICO");
-        // 60.000 de mensualidad + consulta general con 30 % de descuento (42.000).
-        assertThat(basico.valorMensualEstimado()).isEqualByComparingTo("102000");
+        // 60.000 de mensualidad; la consulta es una de las 2 atenciones incluidas.
+        assertThat(basico.valorMensualEstimado()).isEqualByComparingTo("60000");
         assertThat(basico.recomendado()).isTrue();
         assertThat(opcion(resultado, "PREMIUM").recomendado()).isFalse();
     }
@@ -102,12 +112,12 @@ class AfiliacionBonosPrestacionesIntegrationTest {
     }
 
     @Test
-    void simulacionCobraAValorPlenoLasAtencionesQueSuperanElLimite() {
+    void simulacionCobraConBonoLasAtencionesQueSuperanLasIncluidas() {
         SimulacionPlanResponse resultado = simulacionService.simular(new SimulacionPlanRequest(
                 1, List.of(new ServicioEstimadoRequest(servicio("CONSULTA_GENERAL").getId(), 3))));
 
-        // Básico permite 2 atenciones: 2 x 42.000 con descuento + 1 x 60.000 a valor pleno.
-        assertThat(opcion(resultado, "BASICO").costoServiciosConPlan()).isEqualByComparingTo("144000");
+        // Básico incluye 2 atenciones; la tercera se paga con un bono de 42.000 (30 % de descuento).
+        assertThat(opcion(resultado, "BASICO").costoServiciosConPlan()).isEqualByComparingTo("42000");
         assertThat(opcion(resultado, "BASICO").costoServiciosSinPlan()).isEqualByComparingTo("180000");
     }
 
@@ -135,7 +145,7 @@ class AfiliacionBonosPrestacionesIntegrationTest {
 
     @Test
     void consultaElPlanAsignadoConBeneficiosYMascotasCubiertas() {
-        afiliacionService.asignarPlan(afiliado.getId(), new AsignarPlanRequest(
+        asignarYActivar(afiliado.getId(), new AsignarPlanRequest(
                 plan("ESTANDAR").getId(), List.of(rocky.getId(), luna.getId())));
 
         PlanAfiliadoResponse plan = afiliacionService.obtenerPlan(afiliado.getId());
@@ -143,7 +153,7 @@ class AfiliacionBonosPrestacionesIntegrationTest {
         assertThat(plan.codigo()).isEqualTo("ESTANDAR");
         assertThat(plan.precioMensual()).isEqualByComparingTo("100000");
         assertThat(plan.mascotasCubiertas()).extracting("nombre").containsExactly("Rocky", "Luna");
-        assertThat(plan.bonosDisponiblesMes()).isEqualTo(4);
+        assertThat(plan.atencionesIncluidasRestantes()).isEqualTo(4);
         BeneficioServicioResponse consulta = plan.beneficios().stream()
                 .filter(beneficio -> beneficio.codigo().equals("CONSULTA_GENERAL"))
                 .findFirst().orElseThrow();
@@ -154,7 +164,7 @@ class AfiliacionBonosPrestacionesIntegrationTest {
     @Test
     void noPermiteCubrirMasMascotasQueLasDelPlan() {
         BusinessRuleException error = assertThrows(BusinessRuleException.class, () ->
-                afiliacionService.asignarPlan(afiliado.getId(), new AsignarPlanRequest(
+                asignarYActivar(afiliado.getId(), new AsignarPlanRequest(
                         plan("BASICO").getId(), List.of(rocky.getId(), luna.getId()))));
 
         assertThat(error.getMessage()).contains("máximo 1");
@@ -165,7 +175,7 @@ class AfiliacionBonosPrestacionesIntegrationTest {
         Afiliado otro = afiliadoRepository.saveAndFlush(new Afiliado("IT2-" + System.nanoTime(), "Luis", "Pérez"));
         Mascota ajena = mascotaRepository.saveAndFlush(new Mascota("Max", "Perro", otro));
 
-        assertThrows(BusinessRuleException.class, () -> afiliacionService.asignarPlan(
+        assertThrows(BusinessRuleException.class, () -> asignarYActivar(
                 afiliado.getId(), new AsignarPlanRequest(plan("PREMIUM").getId(), List.of(ajena.getId()))));
     }
 
@@ -183,58 +193,121 @@ class AfiliacionBonosPrestacionesIntegrationTest {
     // F-05 ---------------------------------------------------------------
 
     @Test
-    void comprarBonoAplicaElDescuentoDelPlan() {
-        afiliacionService.asignarPlan(afiliado.getId(), new AsignarPlanRequest(
-                plan("PREMIUM").getId(), List.of(rocky.getId())));
-        Long cirugia = servicio("CIRUGIA").getId();
+    void comprarBonoAplicaElDescuentoDelPlanCuandoSeAgotanLasIncluidas() {
+        asignarYActivar(afiliado.getId(), new AsignarPlanRequest(
+                plan("BASICO").getId(), List.of(rocky.getId())));
+        agotarAtencionesIncluidas(rocky, 2);
+        Long consulta = servicio("CONSULTA_GENERAL").getId();
 
-        CotizacionBonoResponse cotizacion = bonoService.cotizar(afiliado.getId(), rocky.getId(), cirugia);
-        BonoResponse bono = bonoService.comprar(afiliado.getId(), new CompraBonoRequest(rocky.getId(), cirugia));
+        CotizacionBonoResponse cotizacion = bonoService.cotizar(afiliado.getId(), rocky.getId(), consulta);
+        BonoResponse bono = bonoService.comprar(afiliado.getId(), new CompraBonoRequest(rocky.getId(), consulta, MedioPago.EFECTIVO));
 
-        // Cirugía 750.000 con 25 % de descuento Premium.
-        assertThat(cotizacion.valorAPagar()).isEqualByComparingTo("562500");
-        assertThat(bono.valorPagado()).isEqualByComparingTo("562500");
+        // Consulta general 60.000 con 30 % de descuento Básico.
+        assertThat(cotizacion.valorAPagar()).isEqualByComparingTo("42000");
+        assertThat(bono.valorPagado()).isEqualByComparingTo("42000");
         assertThat(bono.estado()).isEqualTo("DISPONIBLE");
         assertThat(bono.codigo()).startsWith("BN-");
-        assertThat(bonoService.listar(afiliado.getId())).hasSize(1);
+        // Después de agotar las incluidas, los bonos no tienen tope.
+        bonoService.comprar(afiliado.getId(), new CompraBonoRequest(rocky.getId(), consulta, MedioPago.EFECTIVO));
+        bonoService.comprar(afiliado.getId(), new CompraBonoRequest(rocky.getId(), consulta, MedioPago.EFECTIVO));
+        assertThat(bonoService.listar(afiliado.getId())).hasSize(3);
     }
 
     @Test
     void noVendeBonosSinPlanNiParaMascotasNoCubiertas() {
         Long consulta = servicio("CONSULTA_GENERAL").getId();
         assertThrows(BusinessRuleException.class, () ->
-                bonoService.comprar(afiliado.getId(), new CompraBonoRequest(rocky.getId(), consulta)));
+                bonoService.comprar(afiliado.getId(), new CompraBonoRequest(rocky.getId(), consulta, MedioPago.EFECTIVO)));
 
-        afiliacionService.asignarPlan(afiliado.getId(), new AsignarPlanRequest(
+        asignarYActivar(afiliado.getId(), new AsignarPlanRequest(
                 plan("BASICO").getId(), List.of(rocky.getId())));
         BusinessRuleException error = assertThrows(BusinessRuleException.class, () ->
-                bonoService.comprar(afiliado.getId(), new CompraBonoRequest(luna.getId(), consulta)));
+                bonoService.comprar(afiliado.getId(), new CompraBonoRequest(luna.getId(), consulta, MedioPago.EFECTIVO)));
         assertThat(error.getMessage()).contains("no está cubierta");
     }
 
     @Test
-    void respetaElLimiteMensualDeAtencionesDelPlan() {
-        afiliacionService.asignarPlan(afiliado.getId(), new AsignarPlanRequest(
+    void noVendeBonosMientrasQuedenAtencionesIncluidas() {
+        asignarYActivar(afiliado.getId(), new AsignarPlanRequest(
                 plan("BASICO").getId(), List.of(rocky.getId())));
         Long vacuna = servicio("VACUNACION").getId();
 
-        bonoService.comprar(afiliado.getId(), new CompraBonoRequest(rocky.getId(), vacuna));
-        bonoService.comprar(afiliado.getId(), new CompraBonoRequest(rocky.getId(), vacuna));
+        BusinessRuleException sinUsar = assertThrows(BusinessRuleException.class, () ->
+                bonoService.cotizar(afiliado.getId(), rocky.getId(), vacuna));
+        assertThat(sinUsar.getMessage()).contains("quedan 2 de 2");
 
-        BusinessRuleException error = assertThrows(BusinessRuleException.class, () ->
-                bonoService.comprar(afiliado.getId(), new CompraBonoRequest(rocky.getId(), vacuna)));
-        assertThat(error.getMessage()).contains("límite de 2");
-        assertThat(afiliacionService.obtenerPlan(afiliado.getId()).bonosDisponiblesMes()).isZero();
+        agotarAtencionesIncluidas(rocky, 1);
+        BusinessRuleException unaUsada = assertThrows(BusinessRuleException.class, () ->
+                bonoService.comprar(afiliado.getId(), new CompraBonoRequest(rocky.getId(), vacuna, MedioPago.EFECTIVO)));
+        assertThat(unaUsada.getMessage()).contains("quedan 1 de 2");
+
+        agotarAtencionesIncluidas(rocky, 1);
+        assertThat(bonoService.comprar(afiliado.getId(), new CompraBonoRequest(rocky.getId(), vacuna, MedioPago.EFECTIVO)).id()).isNotNull();
+    }
+
+    @Test
+    void unPlanConAtencionesIlimitadasNoNecesitaBonos() {
+        asignarYActivar(afiliado.getId(), new AsignarPlanRequest(
+                plan("PREMIUM").getId(), List.of(rocky.getId())));
+
+        BusinessRuleException error = assertThrows(BusinessRuleException.class, () -> bonoService.comprar(
+                afiliado.getId(), new CompraBonoRequest(rocky.getId(), servicio("CIRUGIA").getId(), MedioPago.EFECTIVO)));
+        assertThat(error.getMessage()).contains("ilimitadas");
     }
 
     // F-06 ---------------------------------------------------------------
 
     @Test
-    void registrarPrestacionConBonoLoMarcaComoUsadoYApareceEnElHistorial() {
-        afiliacionService.asignarPlan(afiliado.getId(), new AsignarPlanRequest(
-                plan("ESTANDAR").getId(), List.of(rocky.getId(), luna.getId())));
+    void lasAtencionesSinBonoUsanLasIncluidasYDespuesSonParticulares() {
+        asignarYActivar(afiliado.getId(), new AsignarPlanRequest(
+                plan("BASICO").getId(), List.of(rocky.getId())));
         Long consulta = servicio("CONSULTA_GENERAL").getId();
-        BonoResponse bono = bonoService.comprar(afiliado.getId(), new CompraBonoRequest(rocky.getId(), consulta));
+
+        List<String> coberturas = new ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            coberturas.add(prestacionService.registrar(afiliado.getId(), new RegistrarPrestacionRequest(
+                    rocky.getId(), consulta, LocalDate.now(), "VetCasa", null, null)).cobertura());
+        }
+        String lunaNoCubierta = prestacionService.registrar(afiliado.getId(), new RegistrarPrestacionRequest(
+                luna.getId(), consulta, LocalDate.now(), "VetCasa", null, null)).cobertura();
+
+        assertThat(coberturas).containsExactly("PLAN", "PLAN", "PARTICULAR");
+        assertThat(lunaNoCubierta).isEqualTo("PARTICULAR");
+        PlanAfiliadoResponse plan = afiliacionService.obtenerPlan(afiliado.getId());
+        assertThat(plan.atencionesIncluidasUsadas()).isEqualTo(2);
+        assertThat(plan.atencionesIncluidasRestantes()).isZero();
+        assertThat(plan.atencionesIncluidasPeriodo()).hasSize(2)
+                .allSatisfy(prestacion -> assertThat(prestacion.mascotaNombre()).isEqualTo("Rocky"));
+        assertThat(plan.periodoDesde()).isEqualTo(LocalDate.now());
+        assertThat(plan.periodoHasta()).isEqualTo(LocalDate.now().plusMonths(1).minusDays(1));
+        // Solo la atención que agota el cupo genera el aviso, una vez.
+        assertThat(eventos.stream(EventoAfiliado.AtencionesIncluidasAgotadas.class))
+                .containsExactly(new EventoAfiliado.AtencionesIncluidasAgotadas(afiliado.getId(), LocalDate.now()));
+    }
+
+    @Test
+    void soloLaActivacionDeUnPlanPublicaElAvisoDePlanActivado() {
+        asignarYActivar(afiliado.getId(), new AsignarPlanRequest(
+                plan("BASICO").getId(), List.of(rocky.getId())));
+        // Cambiar solo las mascotas cubiertas no es una nueva activación.
+        asignarYActivar(afiliado.getId(), new AsignarPlanRequest(
+                plan("BASICO").getId(), List.of(luna.getId())));
+        // Cambiar a otro plan lo programa; el aviso sale cuando se activa.
+        asignarYActivar(afiliado.getId(), new AsignarPlanRequest(
+                plan("ESTANDAR").getId(), List.of(rocky.getId(), luna.getId())));
+        assertThat(eventos.stream(EventoAfiliado.PlanActivado.class)).hasSize(1);
+
+        afiliacionService.aplicarCambiosProgramados(LocalDate.now().plusMonths(1));
+        assertThat(eventos.stream(EventoAfiliado.PlanActivado.class)).hasSize(2);
+    }
+
+    @Test
+    void registrarPrestacionConBonoLoMarcaComoUsadoYApareceEnElHistorial() {
+        asignarYActivar(afiliado.getId(), new AsignarPlanRequest(
+                plan("BASICO").getId(), List.of(rocky.getId())));
+        agotarAtencionesIncluidas(rocky, 2);
+        Long consulta = servicio("CONSULTA_GENERAL").getId();
+        BonoResponse bono = bonoService.comprar(afiliado.getId(), new CompraBonoRequest(rocky.getId(), consulta, MedioPago.EFECTIVO));
 
         prestacionService.registrar(afiliado.getId(), new RegistrarPrestacionRequest(
                 rocky.getId(), consulta, LocalDate.now(), "Clínica Veterinaria Central", "Control anual", bono.id()));
@@ -242,9 +315,10 @@ class AfiliacionBonosPrestacionesIntegrationTest {
                 luna.getId(), servicio("VACUNACION").getId(), LocalDate.now().minusDays(10), "VetCasa", null, null));
 
         List<PrestacionResponse> historial = prestacionService.listar(afiliado.getId(), null);
-        assertThat(historial).hasSize(2);
+        assertThat(historial).hasSize(4);
         assertThat(historial.get(0).mascotaNombre()).isEqualTo("Rocky");
         assertThat(historial.get(0).bonoCodigo()).isEqualTo(bono.codigo());
+        assertThat(historial.get(0).cobertura()).isEqualTo("BONO");
         assertThat(prestacionService.listar(afiliado.getId(), luna.getId())).hasSize(1);
         assertThat(bonoService.listar(afiliado.getId()).get(0).estado()).isEqualTo("USADO");
 
@@ -255,11 +329,33 @@ class AfiliacionBonosPrestacionesIntegrationTest {
     }
 
     @Test
+    void elPlanMuestraLasAtencionesIncluidasYLosBonosDelPeriodo() {
+        asignarYActivar(afiliado.getId(), new AsignarPlanRequest(
+                plan("BASICO").getId(), List.of(rocky.getId())));
+        agotarAtencionesIncluidas(rocky, 2);
+        Long consulta = servicio("CONSULTA_GENERAL").getId();
+        BonoResponse usado = bonoService.comprar(afiliado.getId(), new CompraBonoRequest(rocky.getId(), consulta, MedioPago.EFECTIVO));
+        BonoResponse sinUsar = bonoService.comprar(afiliado.getId(), new CompraBonoRequest(rocky.getId(), consulta, MedioPago.EFECTIVO));
+        prestacionService.registrar(afiliado.getId(), new RegistrarPrestacionRequest(
+                rocky.getId(), consulta, LocalDate.now(), "VetCasa", null, usado.id()));
+
+        PlanAfiliadoResponse plan = afiliacionService.obtenerPlan(afiliado.getId());
+
+        assertThat(plan.atencionesIncluidasUsadas()).isEqualTo(2);
+        assertThat(plan.atencionesIncluidasRestantes()).isZero();
+        assertThat(plan.bonosPeriodo()).extracting(BonoResponse::id, BonoResponse::estado)
+                .containsExactlyInAnyOrder(
+                        tuple(usado.id(), "USADO"),
+                        tuple(sinUsar.id(), "DISPONIBLE"));
+    }
+
+    @Test
     void noAceptaUnBonoDeOtroServicioOMascota() {
-        afiliacionService.asignarPlan(afiliado.getId(), new AsignarPlanRequest(
+        asignarYActivar(afiliado.getId(), new AsignarPlanRequest(
                 plan("ESTANDAR").getId(), List.of(rocky.getId(), luna.getId())));
+        agotarAtencionesIncluidas(rocky, 4);
         BonoResponse bono = bonoService.comprar(afiliado.getId(),
-                new CompraBonoRequest(rocky.getId(), servicio("CONSULTA_GENERAL").getId()));
+                new CompraBonoRequest(rocky.getId(), servicio("CONSULTA_GENERAL").getId(), MedioPago.EFECTIVO));
 
         assertThrows(BusinessRuleException.class, () -> prestacionService.registrar(afiliado.getId(),
                 new RegistrarPrestacionRequest(luna.getId(), servicio("CONSULTA_GENERAL").getId(),
@@ -267,6 +363,23 @@ class AfiliacionBonosPrestacionesIntegrationTest {
         assertThrows(BusinessRuleException.class, () -> prestacionService.registrar(afiliado.getId(),
                 new RegistrarPrestacionRequest(rocky.getId(), servicio("VACUNACION").getId(),
                         LocalDate.now(), "VetCasa", null, bono.id())));
+    }
+
+    /** Registra atenciones sin bono que consumen las incluidas en el plan del mes. */
+    private void agotarAtencionesIncluidas(Mascota mascota, int cantidad) {
+        Long consulta = servicio("CONSULTA_GENERAL").getId();
+        for (int i = 0; i < cantidad; i++) {
+            PrestacionResponse prestacion = prestacionService.registrar(afiliado.getId(), new RegistrarPrestacionRequest(
+                    mascota.getId(), consulta, LocalDate.now(), "VetCasa", null, null));
+            assertThat(prestacion.cobertura()).isEqualTo("PLAN");
+        }
+    }
+
+    /** Asigna el plan y paga la cuota de activación, para probar con el plan ya activo. */
+    private PlanAfiliadoResponse asignarYActivar(Long afiliadoId, AsignarPlanRequest request) {
+        afiliacionService.asignarPlan(afiliadoId, request);
+        ActivacionPlan.pagarActivacion(cuotaService, afiliadoId);
+        return afiliacionService.obtenerPlan(afiliadoId);
     }
 
     private Plan plan(String codigo) {

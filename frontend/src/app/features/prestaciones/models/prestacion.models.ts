@@ -1,3 +1,5 @@
+export type CoberturaPrestacion = 'PLAN' | 'BONO' | 'PARTICULAR';
+
 export interface Prestacion {
   id: number;
   fecha: string;
@@ -8,6 +10,7 @@ export interface Prestacion {
   tipoServicio: string;
   prestador: string;
   observaciones: string | null;
+  cobertura: CoberturaPrestacion;
   bonoId: number | null;
   bonoCodigo: string | null;
   valorPagadoBono: number | null;

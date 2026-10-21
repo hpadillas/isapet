@@ -109,8 +109,9 @@ public class SimulacionPlanService {
     }
 
     /**
-     * Las atenciones que superan el límite mensual del plan se pagan a valor pleno; dentro del límite
-     * se asignan primero a los servicios con mayor ahorro, que es como el afiliado usaría sus bonos.
+     * Las atenciones incluidas en el plan no tienen costo y se asignan primero a los servicios de mayor
+     * valor, que es como el afiliado las aprovecharía; las que las superan se pagan con bonos al valor
+     * con descuento del plan.
      */
     private Calculo calcular(
             Plan plan,
@@ -127,15 +128,13 @@ public class SimulacionPlanService {
             }
             costoSinPlan = costoSinPlan.add(beneficio.valorBase().multiply(BigDecimal.valueOf(cantidad)));
         }
-        unidades.sort(Comparator.comparing(
-                (BeneficioServicioResponse unidad) -> unidad.valorBase().subtract(unidad.valorConPlan())).reversed());
+        unidades.sort(Comparator.comparing(BeneficioServicioResponse::valorConPlan).reversed());
 
         Integer limite = version.getLimiteAtenciones();
+        int incluidas = limite == null ? unidades.size() : Math.min(limite, unidades.size());
         BigDecimal costoConPlan = BigDecimal.ZERO;
-        for (int i = 0; i < unidades.size(); i++) {
-            BeneficioServicioResponse unidad = unidades.get(i);
-            boolean dentroDelLimite = limite == null || i < limite;
-            costoConPlan = costoConPlan.add(dentroDelLimite ? unidad.valorConPlan() : unidad.valorBase());
+        for (BeneficioServicioResponse adicional : unidades.subList(incluidas, unidades.size())) {
+            costoConPlan = costoConPlan.add(adicional.valorConPlan());
         }
 
         boolean aplica = cantidadMascotas <= version.getMaximoMascotas();

@@ -1,0 +1,86 @@
+<main class="feature-page">
+  <div class="content">
+    <header class="home-heading">
+      <div>
+        <h1>{{ saludo }}@if (auth.session$ | async; as sesion) {, {{ sesion.username }}}</h1>
+        @if (resumen) { <p class="intro">{{ fechaLarga(resumen.fecha) }}</p> }
+      </div>
+      <button class="text-button" type="button" [disabled]="cargando" (click)="cargar()">{{ cargando ? 'Actualizando…' : '↻ Actualizar' }}</button>
+    </header>
+
+    <section class="home-actions" aria-label="Acciones principales">
+      <form class="home-search" role="search" (ngSubmit)="buscar()">
+        <label class="sr-only" for="home-search-input">Buscar afiliado</label>
+        <input id="home-search-input" type="search" [formControl]="busqueda" placeholder="Buscar afiliado por nombre, documento o correo" />
+        <button class="quiet-button" type="submit">Buscar</button>
+      </form>
+      <a class="submit-button home-new" routerLink="/afiliados/registro">+ Nuevo afiliado</a>
+    </section>
+
+    @if (cargando && !resumen) {
+      <p class="state-message" role="status">Cargando resumen…</p>
+    } @else if (error) {
+      <section class="notice error-notice" role="alert">{{ error }}</section>
+    }
+
+    @if (resumen; as r) {
+      @if (r.alertas.length) {
+        <section class="panel attention" aria-labelledby="alerts-heading">
+          <h2 id="alerts-heading">Requiere atención <span class="count">{{ r.alertas.length }}</span></h2>
+          <ul class="alert-list">
+            @for (alerta of r.alertas; track alerta.tipo + alerta.afiliadoId + alerta.fecha) {
+              @let config = configuracion(alerta);
+              <li [class]="'alert-item ' + config.clase">
+                <div>
+                  <span class="alert-tag">{{ config.etiqueta }}</span>
+                  <strong>{{ alerta.afiliado }}</strong>
+                  <p>{{ alerta.mensaje }}</p>
+                </div>
+                <a class="quiet-button" [routerLink]="['/afiliados', alerta.afiliadoId, config.seccion]">{{ config.accion }}</a>
+              </li>
+            }
+          </ul>
+        </section>
+      } @else {
+        <p class="all-clear" role="status">✓ Todo al día: no hay cuotas pendientes, suspensiones ni cambios de plan programados.</p>
+      }
+
+      <section class="stats" aria-label="Cifras generales">
+        <article class="stat"><span>Afiliados</span><strong>{{ r.totalAfiliados }}</strong><small>{{ r.afiliadosConPlan }} con plan</small></article>
+        <article class="stat" [class.attention-stat]="r.totalAfiliados - r.afiliadosConPlan > 0">
+          <span>Sin plan</span><strong>{{ r.totalAfiliados - r.afiliadosConPlan }}</strong><small>pueden afiliarse a un plan</small>
+        </article>
+        <article class="stat"><span>Por cobrar</span><strong>{{ formatearPesos(r.valorPendiente) }}</strong>
+          <small>{{ r.cuotasPendientes }} {{ r.cuotasPendientes === 1 ? 'cuota pendiente' : 'cuotas pendientes' }}</small></article>
+        <article class="stat" [class.alert]="r.afiliadosSuspendidos > 0"><span>Suspendidos</span><strong>{{ r.afiliadosSuspendidos }}</strong><small>por falta de pago</small></article>
+        <article class="stat"><span>Atenciones del mes</span><strong>{{ r.atencionesDelMes }}</strong><small>registradas</small></article>
+      </section>
+
+      <section class="panel" aria-labelledby="recent-heading">
+        <div class="panel-heading">
+          <h2 id="recent-heading">Últimos afiliados</h2>
+          <a class="text-link" routerLink="/afiliados">Ver todos →</a>
+        </div>
+        @if (r.ultimosAfiliados.length === 0) {
+          <p class="empty-state">Aún no hay afiliados. <a routerLink="/afiliados/registro">Registrar el primero</a></p>
+        } @else {
+          <ul class="recent-list">
+            @for (afiliado of r.ultimosAfiliados; track afiliado.id) {
+              <li>
+                <a class="recent-name" [routerLink]="['/afiliados', afiliado.id]">
+                  <strong>{{ afiliado.nombreCompleto }}</strong>
+                  <small>Documento {{ afiliado.numeroIdentificacion }}</small>
+                </a>
+                @if (afiliado.plan) {
+                  <span class="badge">Plan {{ afiliado.plan }}</span>
+                } @else {
+                  <a class="text-link assign-link" [routerLink]="['/afiliados', afiliado.id, 'plan']">Sin plan · Asignar plan →</a>
+                }
+              </li>
+            }
+          </ul>
+        }
+      </section>
+    }
+  </div>
+</main>

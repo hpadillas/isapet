@@ -1,5 +1,6 @@
 package com.isapet.exception;
 
+import com.fasterxml.jackson.databind.JsonMappingException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -28,11 +29,27 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
-    public ResponseEntity<ErrorResponse> handleUnreadableRequest() {
+    public ResponseEntity<ErrorResponse> handleUnreadableRequest(HttpMessageNotReadableException exception) {
+        String detalle = exception.getCause() instanceof JsonMappingException mapping && !mapping.getPath().isEmpty()
+                ? campo(mapping) + ": el valor no tiene el formato esperado; los campos numéricos solo admiten números enteros."
+                : "Verifica que los campos numéricos sean números enteros y que el cuerpo tenga el formato esperado.";
         return ResponseEntity.badRequest().body(new ErrorResponse(
                 HttpStatus.BAD_REQUEST.value(),
                 "La solicitud contiene datos inválidos.",
-                List.of("Verifica que la edad sea un número entero y que el cuerpo tenga el formato esperado.")));
+                List.of(detalle)));
+    }
+
+    /** Ruta del campo que falló al leer el JSON, p. ej. {@code servicios[0].cantidadMensual}. */
+    private static String campo(JsonMappingException exception) {
+        StringBuilder ruta = new StringBuilder();
+        for (JsonMappingException.Reference referencia : exception.getPath()) {
+            if (referencia.getFieldName() != null) {
+                ruta.append(ruta.isEmpty() ? "" : ".").append(referencia.getFieldName());
+            } else {
+                ruta.append('[').append(referencia.getIndex()).append(']');
+            }
+        }
+        return ruta.toString();
     }
 
     @ExceptionHandler({
@@ -81,11 +98,21 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({
             AfiliacionNotFoundException.class,
             ServicioNotFoundException.class,
-            BonoNotFoundException.class
+            BonoNotFoundException.class,
+            CuotaNotFoundException.class,
+            PagoNotFoundException.class
     })
     public ResponseEntity<ErrorResponse> handleAffiliationResourceNotFound(RuntimeException exception) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse(
                 HttpStatus.NOT_FOUND.value(),
+                exception.getMessage(),
+                List.of()));
+    }
+
+    @ExceptionHandler(FirmaPasarelaInvalidaException.class)
+    public ResponseEntity<ErrorResponse> handleFirmaPasarelaInvalida(FirmaPasarelaInvalidaException exception) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ErrorResponse(
+                HttpStatus.UNAUTHORIZED.value(),
                 exception.getMessage(),
                 List.of()));
     }

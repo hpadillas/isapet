@@ -8,6 +8,10 @@ public record AfiliadoListaResponse(
         String celular,
         String correo,
         String direccion,
-        long cantidadMascotas
+        long cantidadMascotas,
+        /** Nombre del plan, o null si no tiene. */
+        String plan,
+        /** Ver {@link EstadoPlanAfiliado}. */
+        String estadoPlan
 ) {
 }

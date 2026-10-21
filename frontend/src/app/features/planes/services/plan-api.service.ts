@@ -2,6 +2,8 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
+  ActualizarPlanRequest,
+  ImpactoEliminacionVersion,
   CrearPlanRequest,
   CrearVersionPlanRequest,
   Plan,
@@ -32,6 +34,18 @@ export class PlanApiService {
 
   publicarVersion(planId: number, request: CrearVersionPlanRequest): Observable<Plan> {
     return this.http.post<Plan>(`${this.endpoint}/${planId}/versiones`, request);
+  }
+
+  actualizarPlan(planId: number, request: ActualizarPlanRequest): Observable<Plan> {
+    return this.http.patch<Plan>(`${this.endpoint}/${planId}`, request);
+  }
+
+  impactoEliminacionVersion(planId: number, versionId: number): Observable<ImpactoEliminacionVersion> {
+    return this.http.get<ImpactoEliminacionVersion>(`${this.endpoint}/${planId}/versiones/${versionId}/eliminacion`);
+  }
+
+  eliminarVersion(planId: number, versionId: number): Observable<Plan> {
+    return this.http.delete<Plan>(`${this.endpoint}/${planId}/versiones/${versionId}`);
   }
 
   desactivarPlan(planId: number): Observable<Plan> {

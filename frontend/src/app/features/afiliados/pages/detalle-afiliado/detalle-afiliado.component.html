@@ -1,8 +1,4 @@
 <div class="management-page">
-  <header class="topbar">
-    <a class="brand" routerLink="/afiliados" aria-label="ISAPET, afiliados"><span class="brand-mark">I</span><span class="brand-name">ISAPET</span></a>
-    <a class="topbar-link" routerLink="/afiliados">Gestión de afiliados</a>
-  </header>
   <main class="content">
     <a class="back-link" routerLink="/afiliados">← Volver a afiliados</a>
     @if (cargando) {
@@ -14,7 +10,10 @@
         <p class="eyebrow"><span></span> AFILIADOS <span class="eyebrow-divider">/</span> DETALLE</p>
         <div class="heading-row">
           <div><h1>{{ afiliado.nombres }} {{ afiliado.apellidos }}</h1><p class="intro">Identificación {{ afiliado.numeroIdentificacion }}</p></div>
-          <a class="primary-button" [routerLink]="['/afiliados', afiliado.id, 'editar']">Editar afiliado</a>
+          <div class="heading-actions">
+            <app-eliminar-afiliado [afiliadoId]="afiliado.id" [nombre]="afiliado.nombres + ' ' + afiliado.apellidos" (eliminado)="alEliminarAfiliado($event)" />
+            <a class="primary-button" [routerLink]="['/afiliados', afiliado.id, 'editar']">Editar afiliado</a>
+          </div>
         </div>
       </div>
       <app-afiliado-tabs [afiliadoId]="afiliado.id" />
@@ -31,6 +30,7 @@
           <div><dt>Email</dt><dd>{{ afiliado.correo }}</dd></div>
           <div class="wide-value"><dt>Dirección</dt><dd>{{ afiliado.direccion }}</dd></div>
         </dl>
+        <app-autorizacion-datos [afiliadoId]="afiliado.id" />
       </section>
 
       <section class="detail-section pets-section" aria-labelledby="pets-heading">
@@ -51,11 +51,11 @@
             <div class="section-heading"><span class="section-index pet-index">{{ editandoMascotaId === null ? '+' : '✎' }}</span><div><h2>{{ editandoMascotaId === null ? 'Agregar mascota' : 'Editar mascota' }}</h2><p>La mascota quedará asociada a este afiliado.</p></div></div>
             @if (errorFormulario) { <section class="notice error-notice" role="alert">{{ errorFormulario }}</section> }
             <div class="fields">
-              <label class="field" for="pet-name"><span>Nombre</span><input id="pet-name" formControlName="nombre" maxlength="100" /></label>
+              <label class="field" for="pet-name"><span>Nombre</span><input id="pet-name" appPermitir="letras" formControlName="nombre" maxlength="100" /></label>
               <label class="field" for="pet-species"><span>Especie</span><select id="pet-species" formControlName="especie"><option value="">Selecciona una especie</option>@for (especie of especies; track especie) { <option [value]="especie">{{ especie }}</option> }</select></label>
-              <label class="field" for="pet-breed"><span>Raza</span><input id="pet-breed" formControlName="raza" maxlength="100" /></label>
+              <label class="field" for="pet-breed"><span>Raza</span><input id="pet-breed" appPermitir="letras" formControlName="raza" maxlength="100" /></label>
               <label class="field" for="pet-age"><span>Edad (años)</span><input id="pet-age" type="number" step="1" min="0" max="100" formControlName="edad" /></label>
-              <label class="field" for="pet-color"><span>Color</span><input id="pet-color" formControlName="color" maxlength="50" /></label>
+              <label class="field" for="pet-color"><span>Color</span><input id="pet-color" appPermitir="letras" formControlName="color" maxlength="50" /></label>
             </div>
             <footer class="form-actions"><button class="quiet-button" type="button" [disabled]="guardando" (click)="cancelarEdicion()">Cancelar</button><button class="primary-button" type="submit" [disabled]="guardando">{{ guardando ? 'Guardando…' : 'Guardar mascota' }}</button></footer>
           </form>

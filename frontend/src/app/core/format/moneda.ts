@@ -15,6 +15,13 @@ export function fechaLocalHoy(): string {
   return `${hoy.getFullYear()}-${mes}-${dia}`;
 }
 
+/** Suma días a una fecha 'yyyy-MM-dd' sin depender de la zona horaria del navegador. */
+export function sumarDias(fecha: string, dias: number): string {
+  const [anio, mes, dia] = fecha.split('-').map(Number);
+  const resultado = new Date(Date.UTC(anio, mes - 1, dia + dias));
+  return resultado.toISOString().slice(0, 10);
+}
+
 /** Mensaje legible a partir del ErrorResponse del backend. */
 export function mensajeError(error: unknown, porDefecto: string): string {
   const respuesta = error as { status?: number; error?: { message?: string; errors?: string[] } | null };

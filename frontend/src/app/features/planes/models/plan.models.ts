@@ -1,3 +1,5 @@
+import { BeneficioServicio } from './afiliacion.models';
+
 export interface VersionPlan {
   id: number;
   precioMensual: number;
@@ -14,6 +16,8 @@ export interface Plan {
   nombre: string;
   activo: boolean;
   versiones: VersionPlan[];
+  /** Descuento del plan en cada servicio (valor del bono con plan). */
+  beneficios: BeneficioServicio[];
 }
 
 export interface CrearPlanRequest {
@@ -23,6 +27,16 @@ export interface CrearPlanRequest {
   maximoMascotas: number;
   limiteAtenciones: number | null;
   vigenteDesde: string;
+}
+
+export interface ImpactoEliminacionVersion {
+  versionId: number;
+  vigenteDesde: string;
+  afiliadosConCambioProgramado: number;
+}
+
+export interface ActualizarPlanRequest {
+  nombre: string;
 }
 
 export interface CrearVersionPlanRequest {

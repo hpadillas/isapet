@@ -13,13 +13,21 @@ import { Bono } from '../../../bonos/models/bono.models';
 import { BonoApiService } from '../../../bonos/services/bono-api.service';
 import { ServicioVeterinario } from '../../../planes/models/afiliacion.models';
 import { SimulacionApiService } from '../../../planes/services/simulacion-api.service';
-import { Prestacion } from '../../models/prestacion.models';
+import { CoberturaPrestacion, Prestacion } from '../../models/prestacion.models';
 import { PrestacionApiService } from '../../services/prestacion-api.service';
+import { PermitirCaracteresDirective } from '../../../../core/validation/permitir-caracteres.directive';
+import { SOLO_PALABRAS } from '../../../../core/validation/campos';
+
+const descripcionCobertura: Record<CoberturaPrestacion, string> = {
+  PLAN: 'como atención incluida en el plan (sin costo)',
+  BONO: 'con bono',
+  PARTICULAR: 'como particular (valor pleno): el plan no la cubre o ya se usaron sus atenciones incluidas del periodo'
+};
 
 @Component({
   selector: 'app-historial-prestaciones',
   standalone: true,
-  imports: [DatePipe, ReactiveFormsModule, RouterLink, AfiliadoTabsComponent],
+  imports: [DatePipe, ReactiveFormsModule, RouterLink, AfiliadoTabsComponent, PermitirCaracteresDirective],
   templateUrl: './historial-prestaciones.component.html'
 })
 export class HistorialPrestacionesComponent implements OnInit {
@@ -37,7 +45,7 @@ export class HistorialPrestacionesComponent implements OnInit {
     mascotaId: new FormControl<number | null>(null, { validators: [Validators.required] }),
     servicioId: new FormControl<number | null>(null, { validators: [Validators.required] }),
     fecha: new FormControl(fechaLocalHoy(), { nonNullable: true, validators: [Validators.required] }),
-    prestador: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.maxLength(150)] }),
+    prestador: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.pattern(SOLO_PALABRAS), Validators.maxLength(150)] }),
     observaciones: new FormControl('', { nonNullable: true, validators: [Validators.maxLength(500)] }),
     bonoId: new FormControl<number | null>(null)
   });
@@ -128,7 +136,9 @@ export class HistorialPrestacionesComponent implements OnInit {
     const valor = this.prestacionForm.getRawValue();
     if (this.prestacionForm.invalid || valor.mascotaId === null || valor.servicioId === null) {
       this.prestacionForm.markAllAsTouched();
-      this.errorFormulario = 'Completa mascota, servicio, fecha y prestador.';
+      this.errorFormulario = this.prestacionForm.controls.prestador.hasError('pattern')
+        ? 'El prestador solo puede contener letras y espacios.'
+        : 'Completa mascota, servicio, fecha y prestador.';
       return;
     }
     if (valor.fecha > this.hoy) {
@@ -145,7 +155,7 @@ export class HistorialPrestacionesComponent implements OnInit {
       bonoId: valor.bonoId
     }).subscribe({
       next: prestacion => {
-        this.exito = `Prestación de ${prestacion.servicioNombre} para ${prestacion.mascotaNombre} registrada.`;
+        this.exito = `Prestación de ${prestacion.servicioNombre} para ${prestacion.mascotaNombre} registrada ${descripcionCobertura[prestacion.cobertura]}.`;
         this.guardando = false;
         this.mostrarFormulario = false;
         if (prestacion.bonoId !== null) {

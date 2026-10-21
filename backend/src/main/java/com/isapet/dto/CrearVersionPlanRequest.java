@@ -1,5 +1,7 @@
 package com.isapet.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.isapet.validation.StrictIntegerDeserializer;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotNull;
@@ -16,9 +18,11 @@ public record CrearVersionPlanRequest(
 
         @NotNull(message = "El máximo de mascotas es obligatorio.")
         @Positive(message = "El máximo de mascotas debe ser mayor que cero.")
+        @JsonDeserialize(using = StrictIntegerDeserializer.class)
         Integer maximoMascotas,
 
         @Positive(message = "El límite de atenciones debe ser mayor que cero o nulo para ilimitado.")
+        @JsonDeserialize(using = StrictIntegerDeserializer.class)
         Integer limiteAtenciones,
 
         @NotNull(message = "La fecha de vigencia es obligatoria.")

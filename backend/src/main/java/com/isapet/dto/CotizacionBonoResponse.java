@@ -11,7 +11,6 @@ public record CotizacionBonoResponse(
         BigDecimal valorBase,
         int porcentajeDescuento,
         BigDecimal valorAPagar,
-        BigDecimal ahorro,
-        Integer bonosDisponiblesMes
+        BigDecimal ahorro
 ) {
 }

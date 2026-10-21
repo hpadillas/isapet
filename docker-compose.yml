@@ -26,6 +26,17 @@ services:
     networks:
       - isapet-net
 
+  # Bandeja de correo de prueba: recibe todas las notificaciones sin enviarlas a Internet.
+  # Interfaz web en http://localhost:8025 (MAILPIT_PORT).
+  mailpit:
+    image: axllent/mailpit:v1.21.8
+    container_name: isapet-mailpit
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${MAILPIT_PORT:-8025}:8025"
+    networks:
+      - isapet-net
+
   backend:
     build:
       context: ./backend
@@ -35,8 +46,12 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      mailpit:
+        condition: service_started
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+      # Zona horaria del negocio: define "hoy" y el mes calendario de atenciones y bonos.
+      TZ: ${APP_TIMEZONE:-America/Bogota}
       SERVER_PORT: 8080
       # Conexión por nombre de servicio y puerto interno de la red de Docker.
       DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-isapet}
@@ -53,6 +68,23 @@ services:
       BOOTSTRAP_ADMIN_USERNAME: ${ADMIN_USERNAME:?Define ADMIN_USERNAME en el archivo .env}
       BOOTSTRAP_ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Define ADMIN_PASSWORD en el archivo .env}
       JAVA_OPTS: ${JAVA_OPTS:--XX:MaxRAMPercentage=75}
+      # Notificaciones por correo. Por defecto van a Mailpit; para correo real, ver README.
+      NOTIFICACIONES_HABILITADAS: ${NOTIFICACIONES_HABILITADAS:-true}
+      MAIL_HOST: ${MAIL_HOST:-mailpit}
+      MAIL_PORT: ${MAIL_PORT:-1025}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_SMTP_AUTH: ${MAIL_SMTP_AUTH:-false}
+      MAIL_SMTP_STARTTLS: ${MAIL_SMTP_STARTTLS:-false}
+      MAIL_FROM: ${MAIL_FROM:-ISAPET <no-reply@isapet.local>}
+      RECORDATORIO_CRON: ${RECORDATORIO_CRON:-0 0 8 * * *}
+      RENOVACION_CRON: ${RENOVACION_CRON:-0 5 0 * * *}
+      PASARELA_SECRETO: ${PASARELA_SECRETO:-secreto-de-pruebas-isapet}
+      PRIVACIDAD_RESPONSABLE: ${PRIVACIDAD_RESPONSABLE:-ISAPET}
+      PRIVACIDAD_NIT: ${PRIVACIDAD_NIT:-Por definir}
+      PRIVACIDAD_DIRECCION: ${PRIVACIDAD_DIRECCION:-Por definir}
+      PRIVACIDAD_CORREO: ${PRIVACIDAD_CORREO:-protecciondatos@isapet.local}
+      PRIVACIDAD_TELEFONO: ${PRIVACIDAD_TELEFONO:-Por definir}
     expose:
       - "8080"
     networks:
@@ -77,15 +109,37 @@ services:
   # Pruebas automatizadas del backend contra el PostgreSQL del stack, sin Java ni Maven en el
   # anfitrión. No arranca con "up"; se ejecuta con:
   #   docker compose --profile tests run --rm backend-tests
+  # Crea (si no existe) la base de datos exclusiva de las pruebas, para que no dependan de los datos
+  # de la demo ni los modifiquen.
+  backend-tests-db:
+    image: postgres:16-alpine
+    profiles: ["tests"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-isapet}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en el archivo .env}
+      PGDATABASE: ${POSTGRES_DB:-isapet}
+      TEST_DB: ${POSTGRES_TEST_DB:-isapet_test}
+    command:
+      - sh
+      - -c
+      - psql -tAc "SELECT 1 FROM pg_database WHERE datname = '$$TEST_DB'" | grep -q 1 || psql -c "CREATE DATABASE \"$$TEST_DB\""
+    networks:
+      - isapet-net
+
   backend-tests:
     image: maven:3.9.9-eclipse-temurin-17
     profiles: ["tests"]
     working_dir: /workspace
     depends_on:
-      postgres:
-        condition: service_healthy
+      backend-tests-db:
+        condition: service_completed_successfully
     environment:
-      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-isapet}
+      TZ: ${APP_TIMEZONE:-America/Bogota}
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_TEST_DB:-isapet_test}
       DB_USERNAME: ${POSTGRES_USER:-isapet}
       DB_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en el archivo .env}
     volumes:

@@ -58,10 +58,10 @@
                 </select>
               </label>
               <label class="field" for="p-fecha"><span>Fecha</span><input id="p-fecha" type="date" [max]="hoy" formControlName="fecha" /></label>
-              <label class="field" for="p-prestador"><span>Prestador (clínica o veterinario)</span><input id="p-prestador" maxlength="150" formControlName="prestador" /></label>
-              <label class="field" for="p-bono"><span>Bono utilizado (opcional)</span>
+              <label class="field" for="p-prestador"><span>Prestador (clínica o veterinario)</span><input id="p-prestador" appPermitir="letras" maxlength="150" formControlName="prestador" /></label>
+              <label class="field" for="p-bono"><span>Bono (solo atenciones adicionales)</span>
                 <select id="p-bono" formControlName="bonoId">
-                  <option [ngValue]="null">{{ bonosAplicables.length ? 'Sin bono' : 'No hay bonos disponibles para esta selección' }}</option>
+                  <option [ngValue]="null">Sin bono (usa una atención incluida si quedan)</option>
                   @for (bono of bonosAplicables; track bono.id) { <option [ngValue]="bono.id">{{ bono.codigo }} · {{ formatearPesos(bono.valorPagado) }}</option> }
                 </select>
               </label>
@@ -81,7 +81,7 @@
         } @else {
           <div class="table-wrap">
             <table class="data-table">
-              <thead><tr><th>Fecha</th><th>Mascota</th><th>Servicio</th><th>Prestador</th><th>Bono</th><th>Observaciones</th></tr></thead>
+              <thead><tr><th>Fecha</th><th>Mascota</th><th>Servicio</th><th>Prestador</th><th>Cobertura</th><th>Observaciones</th></tr></thead>
               <tbody>
                 @for (prestacion of prestaciones; track prestacion.id) {
                   <tr>
@@ -89,7 +89,13 @@
                     <td data-label="Mascota">{{ prestacion.mascotaNombre }}</td>
                     <td data-label="Servicio">{{ prestacion.servicioNombre }} <small class="muted">{{ prestacion.tipoServicio === 'CONSULTA' ? 'Consulta' : 'Procedimiento' }}</small></td>
                     <td data-label="Prestador">{{ prestacion.prestador }}</td>
-                    <td data-label="Bono">{{ prestacion.bonoCodigo ? prestacion.bonoCodigo + ' · ' + formatearPesos(prestacion.valorPagadoBono) : '—' }}</td>
+                    <td data-label="Cobertura">
+                      @switch (prestacion.cobertura) {
+                        @case ('PLAN') { <span class="badge">Incluida en el plan</span> }
+                        @case ('BONO') { <span class="badge badge-muted">Bono {{ prestacion.bonoCodigo }} · {{ formatearPesos(prestacion.valorPagadoBono) }}</span> }
+                        @default { <span class="badge badge-muted">Particular · valor pleno</span> }
+                      }
+                    </td>
                     <td data-label="Observaciones">{{ prestacion.observaciones || '—' }}</td>
                   </tr>
                 }

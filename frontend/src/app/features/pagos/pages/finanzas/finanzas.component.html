@@ -1,0 +1,91 @@
+<main class="feature-page">
+  <div class="content">
+    <header class="page-heading">
+      <p class="eyebrow"><span aria-hidden="true"></span> ADMINISTRACIÓN <span class="eyebrow-divider">/</span> FINANZAS</p>
+      <h1>Conciliación de pagos</h1>
+      <p class="intro">Cada pago con el plan o el bono que lo originó, su medio y su estado. Exporta para cruzar con el banco y la pasarela.</p>
+    </header>
+
+    <form class="panel filters" [formGroup]="filtros" (ngSubmit)="consultar()" aria-label="Filtros de conciliación">
+      <label class="field" for="f-desde"><span>Desde</span><input id="f-desde" type="date" formControlName="desde" /></label>
+      <label class="field" for="f-hasta"><span>Hasta</span><input id="f-hasta" type="date" formControlName="hasta" /></label>
+      <label class="field" for="f-estado"><span>Estado</span>
+        <select id="f-estado" formControlName="estado">
+          <option value="">Todos</option><option value="APROBADO">Aprobado</option><option value="PENDIENTE">Pendiente</option>
+          <option value="RECHAZADO">Rechazado</option><option value="ANULADO">Anulado</option>
+        </select>
+      </label>
+      <label class="field" for="f-concepto"><span>Concepto</span>
+        <select id="f-concepto" formControlName="concepto">
+          <option value="">Todos</option><option value="CUOTA_PLAN">Cuota del plan</option><option value="BONO">Bono</option>
+        </select>
+      </label>
+      <label class="field" for="f-medio"><span>Medio</span>
+        <select id="f-medio" formControlName="medio">
+          <option value="">Todos</option><option value="EFECTIVO">Efectivo</option><option value="TARJETA">Tarjeta</option>
+          <option value="TRANSFERENCIA">Transferencia</option><option value="PSE">PSE</option>
+        </select>
+      </label>
+      <label class="field" for="f-canal"><span>Canal</span>
+        <select id="f-canal" formControlName="canal">
+          <option value="">Todos</option><option value="MANUAL">En ISAPET</option><option value="PASARELA">En línea</option>
+        </select>
+      </label>
+      <div class="filter-actions">
+        <button class="quiet-button" type="button" (click)="limpiar()">Limpiar</button>
+        <button class="submit-button" type="submit" [disabled]="cargando">{{ cargando ? 'Consultando…' : 'Consultar' }}</button>
+      </div>
+    </form>
+
+    @if (error) {
+      <section class="notice error-notice" role="alert">{{ error }}</section>
+    }
+
+    @if (conciliacion; as c) {
+      <section class="stats" aria-label="Totales del periodo">
+        <article class="stat"><span>Aprobado</span><strong>{{ formatearPesos(c.totalAprobado) }}</strong><small>recaudado</small></article>
+        <article class="stat attention-stat"><span>Pendiente</span><strong>{{ formatearPesos(c.totalPendiente) }}</strong><small>esperando a la pasarela</small></article>
+        <article class="stat" [class.alert]="c.totalRechazado > 0"><span>Rechazado</span><strong>{{ formatearPesos(c.totalRechazado) }}</strong><small>no recaudado</small></article>
+        <article class="stat by-method"><span>Aprobado por medio</span>
+          @for (medio of c.aprobadoPorMedio | keyvalue; track medio.key) {
+            <small>{{ etiquetaMedio(medio.key) }}: <strong>{{ formatearPesos(medio.value) }}</strong></small>
+          } @empty { <small>Sin pagos aprobados</small> }
+        </article>
+      </section>
+
+      <section class="panel" aria-labelledby="ledger-heading">
+        <div class="panel-heading">
+          <h2 id="ledger-heading">{{ c.pagos.length }} {{ c.pagos.length === 1 ? 'pago' : 'pagos' }} del {{ c.desde | date: 'dd/MM/yyyy' }} al {{ c.hasta | date: 'dd/MM/yyyy' }}</h2>
+          <button class="quiet-button" type="button" [disabled]="c.pagos.length === 0" (click)="exportar()">Exportar CSV</button>
+        </div>
+        @if (c.pagos.length === 0) {
+          <p class="empty-state">No hay pagos con esos filtros.</p>
+        } @else {
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Fecha</th><th>Referencia</th><th>Afiliado</th><th>Origen</th><th>Monto</th><th>Medio</th><th>Canal</th><th>Estado</th></tr></thead>
+              <tbody>
+                @for (pago of c.pagos; track pago.id) {
+                  <tr>
+                    <td data-label="Fecha">{{ (pago.fechaPago ?? pago.creadoEn) | date: 'dd/MM/yyyy' }}</td>
+                    <td data-label="Referencia"><code>{{ pago.referencia }}</code>
+                      @if (pago.transaccionPasarela) { <small class="muted"><br />Pasarela: {{ pago.transaccionPasarela }}</small> }</td>
+                    <td data-label="Afiliado"><a [routerLink]="['/afiliados', pago.afiliadoId, 'pagos']">{{ pago.afiliado }}</a></td>
+                    <td data-label="Origen">{{ pago.descripcion }}</td>
+                    <td data-label="Monto"><strong>{{ formatearPesos(pago.monto) }}</strong></td>
+                    <td data-label="Medio">{{ etiquetaMedio(pago.medioPago) }}</td>
+                    <td data-label="Canal">{{ pago.canal === 'PASARELA' ? 'En línea' : 'En ISAPET' }}</td>
+                    <td data-label="Estado">
+                      <span class="badge" [class.badge-muted]="pago.estado === 'PENDIENTE' || pago.estado === 'ANULADO'"
+                            [class.badge-danger]="pago.estado === 'RECHAZADO'">{{ pago.estado | titlecase }}</span>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </section>
+    }
+  </div>
+</main>
