@@ -1,0 +1,227 @@
+diff --git a/backend/src/main/java/com/isapet/service/BonoService.java b/backend/src/main/java/com/isapet/service/BonoService.java
+index 2483a62..47bcd54 100644
+--- a/backend/src/main/java/com/isapet/service/BonoService.java
++++ b/backend/src/main/java/com/isapet/service/BonoService.java
+@@ -10,7 +10,6 @@ import com.isapet.entity.Bono;
+ import com.isapet.entity.Mascota;
+ import com.isapet.entity.ServicioVeterinario;
+ import com.isapet.entity.TarifaBono;
+-import com.isapet.entity.VersionPlan;
+ import com.isapet.exception.AfiliadoNotFoundException;
+ import com.isapet.exception.BusinessRuleException;
+ import com.isapet.exception.MascotaNotFoundException;
+@@ -21,7 +20,6 @@ import com.isapet.repository.AfiliadoRepository;
+ import com.isapet.repository.BonoRepository;
+ import com.isapet.repository.CuotaPlanRepository;
+ import com.isapet.repository.MascotaRepository;
+-import com.isapet.repository.PrestacionRepository;
+ import com.isapet.repository.ServicioVeterinarioRepository;
+ import org.springframework.stereotype.Service;
+ import org.springframework.transaction.annotation.Transactional;
+@@ -40,10 +38,10 @@ public class BonoService {
+     private final MascotaRepository mascotaRepository;
+     private final ServicioVeterinarioRepository servicioRepository;
+     private final BonoRepository bonoRepository;
+-    private final PrestacionRepository prestacionRepository;
+     private final CuotaPlanRepository cuotaRepository;
+     private final PagoService pagoService;
+     private final BeneficiosPlanResolver beneficiosResolver;
++    private final CupoAtencionesIncluidas cupoAtenciones;
+     private final BonoPrestacionMapper mapper;
+     private final Clock clock;
+ 
+@@ -53,10 +51,10 @@ public class BonoService {
+             MascotaRepository mascotaRepository,
+             ServicioVeterinarioRepository servicioRepository,
+             BonoRepository bonoRepository,
+-            PrestacionRepository prestacionRepository,
+             CuotaPlanRepository cuotaRepository,
+             PagoService pagoService,
+             BeneficiosPlanResolver beneficiosResolver,
++            CupoAtencionesIncluidas cupoAtenciones,
+             BonoPrestacionMapper mapper,
+             Clock clock) {
+         this.afiliadoRepository = afiliadoRepository;
+@@ -64,10 +62,10 @@ public class BonoService {
+         this.mascotaRepository = mascotaRepository;
+         this.servicioRepository = servicioRepository;
+         this.bonoRepository = bonoRepository;
+-        this.prestacionRepository = prestacionRepository;
+         this.cuotaRepository = cuotaRepository;
+         this.pagoService = pagoService;
+         this.beneficiosResolver = beneficiosResolver;
++        this.cupoAtenciones = cupoAtenciones;
+         this.mapper = mapper;
+         this.clock = clock;
+     }
+@@ -161,35 +159,32 @@ public class BonoService {
+                 .filter(ServicioVeterinario::isActivo)
+                 .orElseThrow(() -> new ServicioNotFoundException(servicioId));
+ 
+-        Long planId = afiliacion.getPlan().getId();
+-        VersionPlan version = beneficiosResolver.versionVigente(planId, LocalDate.now(clock))
++        LocalDate hoy = LocalDate.now(clock);
++        UsoAtencionesIncluidas uso = cupoAtenciones.consultar(afiliacion, hoy)
+                 .orElseThrow(() -> new BusinessRuleException(
+                         "El plan del afiliado no tiene condiciones comerciales vigentes a la fecha."));
+ 
+         if (afiliacion.isPendienteActivacion()) {
+             throw new BusinessRuleException("El plan aún no está activo: se activa al pagar su primera cuota.");
+         }
+-        if (cuotaRepository.planSuspendido(afiliadoId, LocalDate.now(clock))) {
++        if (cuotaRepository.planSuspendido(afiliadoId, hoy)) {
+             throw new BusinessRuleException("El plan está suspendido por falta de pago. "
+                     + "Registra el pago de la cuota vencida para reactivarlo y poder comprar bonos.");
+         }
+         // Los bonos pagan atenciones adicionales: solo se venden cuando se agotan las incluidas del periodo.
+-        Integer limite = version.getLimiteAtenciones();
+-        if (limite == null) {
++        if (uso.ilimitadas()) {
+             throw new BusinessRuleException("El plan " + afiliacion.getPlan().getNombre()
+                     + " incluye atenciones ilimitadas; no es necesario comprar bonos.");
+         }
+-        PeriodoAfiliacion periodo = PeriodoAfiliacion.queContiene(afiliacion.getFechaInicio(), LocalDate.now(clock));
+-        long usadas = prestacionRepository.contarIncluidasEnPlan(afiliadoId, periodo.desde(), periodo.hastaExclusiva());
+-        if (usadas < limite) {
++        if (uso.quedanDisponibles()) {
+             throw new BusinessRuleException(("Al afiliado le quedan %d de %d atenciones incluidas en su plan en el periodo "
+                     + "actual (hasta el %s); los bonos se compran cuando se agoten.")
+-                    .formatted(limite - usadas, limite, periodo.hasta()));
++                    .formatted(uso.restantes(), uso.limite(), uso.periodo().hasta()));
+         }
+ 
+         TarifaBono tarifa = TarifaBono.calcular(
+                 servicio.getValorBase(),
+-                beneficiosResolver.porcentajeDescuento(planId, servicio.getId()));
++                beneficiosResolver.porcentajeDescuento(afiliacion.getPlan().getId(), servicio.getId()));
+         return new Elegibilidad(afiliacion, mascota, servicio, tarifa);
+     }
+ 
+diff --git a/backend/src/main/java/com/isapet/service/CupoAtencionesIncluidas.java b/backend/src/main/java/com/isapet/service/CupoAtencionesIncluidas.java
+new file mode 100644
+index 0000000..8a5c66b
+--- /dev/null
++++ b/backend/src/main/java/com/isapet/service/CupoAtencionesIncluidas.java
+@@ -0,0 +1,36 @@
++package com.isapet.service;
++
++import com.isapet.entity.Afiliacion;
++import com.isapet.repository.PrestacionRepository;
++import org.springframework.stereotype.Component;
++
++import java.time.LocalDate;
++import java.util.Optional;
++
++/**
++ * Única fuente de la regla del cupo de atenciones incluidas: en el periodo que contiene una fecha, cuántas
++ * atenciones cubre el plan según su versión comercial vigente y cuántas ya se usaron. La venta de bonos y
++ * el registro de prestaciones deciden con este mismo cálculo, para que nunca se contradigan.
++ */
++@Component
++public class CupoAtencionesIncluidas {
++
++    private final BeneficiosPlanResolver beneficiosResolver;
++    private final PrestacionRepository prestacionRepository;
++
++    public CupoAtencionesIncluidas(BeneficiosPlanResolver beneficiosResolver, PrestacionRepository prestacionRepository) {
++        this.beneficiosResolver = beneficiosResolver;
++        this.prestacionRepository = prestacionRepository;
++    }
++
++    /** Vacío si el plan no tiene condiciones comerciales vigentes en {@code fecha}. */
++    public Optional<UsoAtencionesIncluidas> consultar(Afiliacion afiliacion, LocalDate fecha) {
++        PeriodoAfiliacion periodo = PeriodoAfiliacion.queContiene(afiliacion.getFechaInicio(), fecha);
++        return beneficiosResolver.versionVigente(afiliacion.getPlan().getId(), fecha).map(version -> {
++            Integer limite = version.getLimiteAtenciones();
++            long usadas = limite == null ? 0 : prestacionRepository.contarIncluidasEnPlan(
++                    afiliacion.getAfiliado().getId(), periodo.desde(), periodo.hastaExclusiva());
++            return new UsoAtencionesIncluidas(periodo, limite, usadas);
++        });
++    }
++}
+diff --git a/backend/src/main/java/com/isapet/service/PrestacionService.java b/backend/src/main/java/com/isapet/service/PrestacionService.java
+index e1773d4..7bbebf4 100644
+--- a/backend/src/main/java/com/isapet/service/PrestacionService.java
++++ b/backend/src/main/java/com/isapet/service/PrestacionService.java
+@@ -41,7 +41,7 @@ public class PrestacionService {
+     private final BonoRepository bonoRepository;
+     private final PrestacionRepository prestacionRepository;
+     private final CuotaPlanRepository cuotaRepository;
+-    private final BeneficiosPlanResolver beneficiosResolver;
++    private final CupoAtencionesIncluidas cupoAtenciones;
+     private final BonoPrestacionMapper mapper;
+     private final ApplicationEventPublisher eventos;
+     private final Clock clock;
+@@ -54,7 +54,7 @@ public class PrestacionService {
+             BonoRepository bonoRepository,
+             PrestacionRepository prestacionRepository,
+             CuotaPlanRepository cuotaRepository,
+-            BeneficiosPlanResolver beneficiosResolver,
++            CupoAtencionesIncluidas cupoAtenciones,
+             BonoPrestacionMapper mapper,
+             ApplicationEventPublisher eventos,
+             Clock clock) {
+@@ -65,7 +65,7 @@ public class PrestacionService {
+         this.bonoRepository = bonoRepository;
+         this.prestacionRepository = prestacionRepository;
+         this.cuotaRepository = cuotaRepository;
+-        this.beneficiosResolver = beneficiosResolver;
++        this.cupoAtenciones = cupoAtenciones;
+         this.mapper = mapper;
+         this.eventos = eventos;
+         this.clock = clock;
+@@ -139,15 +139,9 @@ public class PrestacionService {
+                 || cuotaRepository.planSuspendido(afiliadoId, fecha)) {
+             return Optional.empty();
+         }
+-        PeriodoAfiliacion periodo = PeriodoAfiliacion.queContiene(afiliacion.getFechaInicio(), fecha);
+-        return beneficiosResolver.versionVigente(afiliacion.getPlan().getId(), fecha).flatMap(version -> {
+-            Integer limite = version.getLimiteAtenciones();
+-            if (limite == null) {
+-                return Optional.of(new CupoIncluido(periodo, false));
+-            }
+-            long usadas = prestacionRepository.contarIncluidasEnPlan(afiliadoId, periodo.desde(), periodo.hastaExclusiva());
+-            return usadas < limite ? Optional.of(new CupoIncluido(periodo, usadas + 1 == limite)) : Optional.empty();
+-        });
++        return cupoAtenciones.consultar(afiliacion, fecha)
++                .filter(UsoAtencionesIncluidas::quedanDisponibles)
++                .map(uso -> new CupoIncluido(uso.periodo(), uso.siguienteEsLaUltima()));
+     }
+ 
+     private record CupoIncluido(PeriodoAfiliacion periodo, boolean esElUltimo) {
+diff --git a/backend/src/main/java/com/isapet/service/UsoAtencionesIncluidas.java b/backend/src/main/java/com/isapet/service/UsoAtencionesIncluidas.java
+new file mode 100644
+index 0000000..60c75ed
+--- /dev/null
++++ b/backend/src/main/java/com/isapet/service/UsoAtencionesIncluidas.java
+@@ -0,0 +1,30 @@
++package com.isapet.service;
++
++/**
++ * Uso de las atenciones incluidas del plan en un periodo de la afiliación. {@code limite} es {@code null}
++ * cuando el plan incluye atenciones ilimitadas; en ese caso {@code usadas} no se cuenta y vale 0.
++ */
++public record UsoAtencionesIncluidas(PeriodoAfiliacion periodo, Integer limite, long usadas) {
++
++    public boolean ilimitadas() {
++        return limite == null;
++    }
++
++    /** Si una atención más todavía la cubre el plan. */
++    public boolean quedanDisponibles() {
++        return ilimitadas() || usadas < limite;
++    }
++
++    /** Atenciones incluidas que quedan en el periodo; solo tiene sentido si el plan tiene límite. */
++    public long restantes() {
++        if (ilimitadas()) {
++            throw new IllegalStateException("El plan incluye atenciones ilimitadas.");
++        }
++        return limite - usadas;
++    }
++
++    /** Si la siguiente atención cubierta por el plan agota las incluidas del periodo. */
++    public boolean siguienteEsLaUltima() {
++        return !ilimitadas() && usadas + 1 == limite;
++    }
++}

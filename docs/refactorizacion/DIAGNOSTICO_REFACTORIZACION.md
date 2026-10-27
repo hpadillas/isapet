@@ -109,7 +109,7 @@ Resumen (detalle en las fichas):
 
 | ID | Tipo | Ubicación principal | Hallazgo | Estado |
 |---|---|---|---|---|
-| H-01 | Deuda técnica (duplicación de regla de dominio, SRP/cohesión) | `BonoService.evaluar` L164-188 · `PrestacionService.cupoIncluidoDisponible` L142-150 | La regla del cupo de atenciones incluidas está reimplementada en 4 servicios | Seleccionado |
+| H-01 | Deuda técnica (duplicación de regla de dominio, SRP/cohesión) | `BonoService.evaluar` L164-188 · `PrestacionService.cupoIncluidoDisponible` L142-150 | La regla del cupo de atenciones incluidas está reimplementada en 4 servicios | Verificado (en F-05; resto en §7.2) |
 | H-02 | Riesgo arquitectónico (cohesión de la capa web, SRP) | `AfiliacionController` · `PagoController` L58 | Los endpoints de bonos están repartidos entre dos controladores; uno concentra 5 funcionalidades | Pendiente |
 | H-03 | Riesgo arquitectónico (seguridad / configuración) | `FirmaPasarela` L24 · `application.yml` L48 · `docker-compose.yml` L82 | Secreto del webhook con valor por defecto público; el webhook es `permitAll` | Pendiente |
 | H-04 | Oportunidad de mejora (regla repartida / validación después de persistir) | `BonoService.comprarEnLinea` L128-136 · `PagoService.iniciarPagoBono` L112-114 | Un bono de valor 0 se inserta y luego se rechaza por rollback | Pendiente |
@@ -200,7 +200,7 @@ lo usan; cada servicio conserva su reacción propia (excepción con mensaje en l
 de los casos de la regla que no estaban cubiertos (mensaje exacto con fin de periodo, atención anterior
 a la afiliación, plan ilimitado sin aviso de cupo agotado) + pruebas unitarias del componente nuevo.
 
-**Estado:** seleccionado.
+**Estado:** seleccionado → implementado (`c7cb685`) → verificado (sección 6).
 
 ---
 
@@ -404,16 +404,208 @@ se escala como hallazgo de seguridad y no como la refactorización del taller.
 
 ## 5. Intervención
 
-*Se completa en la sesión 2.*
+**Cambio elegido:** H-01 — *Extract Class* de la regla del cupo de atenciones incluidas. Es una
+**refactorización** (no corrige un defecto): no cambia mensajes, códigos HTTP, orden de validaciones
+ni datos persistidos.
+
+### 5.1 Diseño antes / después
+
+```
+ANTES                                              DESPUÉS
+─────                                              ───────
+BonoService.evaluar                                BonoService.evaluar
+  ├─ BeneficiosPlanResolver.versionVigente           └─ CupoAtencionesIncluidas.consultar(afiliacion, hoy)
+  ├─ PeriodoAfiliacion.queContiene                         → UsoAtencionesIncluidas
+  ├─ PrestacionRepository.contarIncluidasEnPlan              (ilimitadas, quedanDisponibles, restantes)
+  └─ if (usadas < limite) ...
+                                                   PrestacionService.cupoIncluidoDisponible
+PrestacionService.cupoIncluidoDisponible             └─ CupoAtencionesIncluidas.consultar(afiliacion, fecha)
+  ├─ BeneficiosPlanResolver.versionVigente                 → UsoAtencionesIncluidas
+  ├─ PeriodoAfiliacion.queContiene                           (quedanDisponibles, siguienteEsLaUltima)
+  ├─ PrestacionRepository.contarIncluidasEnPlan
+  └─ usadas < limite ? ... usadas + 1 == limite    CupoAtencionesIncluidas  ← ÚNICA fuente de la regla
+                                                     ├─ BeneficiosPlanResolver.versionVigente
+(la regla escrita dos veces dentro de F-05)          ├─ PeriodoAfiliacion.queContiene
+                                                     └─ PrestacionRepository.contarIncluidasEnPlan
+```
+
+- `CupoAtencionesIncluidas` (`@Component`, capa de servicio) **calcula**: periodo que contiene la fecha,
+  versión vigente, límite y atenciones usadas. Vacío si no hay versión vigente.
+- `UsoAtencionesIncluidas` (*record* inmutable) **interpreta** la regla: `ilimitadas()`,
+  `quedanDisponibles()`, `restantes()`, `siguienteEsLaUltima()`. Antes esta semántica estaba
+  implícita en `limite == null`, `usadas < limite` y `usadas + 1 == limite` repetidos.
+- Cada caso de uso conserva **su reacción**, que sí es propia: la venta lanza
+  `BusinessRuleException` con su mensaje; la atención cae a cobertura `PARTICULAR` y publica el aviso de
+  cupo agotado. Las guardas específicas (plan pendiente de activación, suspendido, cancelación
+  cumplida, fecha anterior a la afiliación) quedan donde estaban, porque difieren entre los dos casos de
+  uso por diseño.
+
+Fragmento después (`BonoService.evaluar`, L162-183 en `c7cb685`):
+
+```java
+LocalDate hoy = LocalDate.now(clock);
+UsoAtencionesIncluidas uso = cupoAtenciones.consultar(afiliacion, hoy)
+        .orElseThrow(() -> new BusinessRuleException(
+                "El plan del afiliado no tiene condiciones comerciales vigentes a la fecha."));
+... // pendiente de activación y suspensión: sin cambios
+if (uso.ilimitadas()) { throw ... "incluye atenciones ilimitadas" ... }
+if (uso.quedanDisponibles()) {
+    throw ... .formatted(uso.restantes(), uso.limite(), uso.periodo().hasta()));
+}
+```
+
+Fragmento después (`PrestacionService.cupoIncluidoDisponible`, L142-144 en `c7cb685`):
+
+```java
+return cupoAtenciones.consultar(afiliacion, fecha)
+        .filter(UsoAtencionesIncluidas::quedanDisponibles)
+        .map(uso -> new CupoIncluido(uso.periodo(), uso.siguienteEsLaUltima()));
+```
+
+### 5.2 Archivos afectados
+
+| Archivo | Cambio |
+|---|---|
+| `backend/src/main/java/com/isapet/service/CupoAtencionesIncluidas.java` | **Nuevo**. Cálculo del cupo del periodo |
+| `backend/src/main/java/com/isapet/service/UsoAtencionesIncluidas.java` | **Nuevo**. *Record* con la semántica de la regla |
+| `backend/src/main/java/com/isapet/service/BonoService.java` | Usa el componente; deja de depender de `PrestacionRepository` y de `VersionPlan` |
+| `backend/src/main/java/com/isapet/service/PrestacionService.java` | Usa el componente; deja de depender de `BeneficiosPlanResolver` |
+| `backend/src/test/java/com/isapet/service/CupoAtencionesIncluidasTest.java` | **Nuevo**. 5 pruebas unitarias del componente |
+| `backend/src/test/java/com/isapet/integration/AfiliacionBonosPrestacionesIntegrationTest.java` | +3 pruebas de caracterización (commit previo al refactor) |
+
+Diff completo del código de producción: `evidencias/05-diff-refactorizacion.diff`
+(5 archivos, +213 / −27, de los cuales 131 líneas son la prueba unitaria nueva).
+
+### 5.3 Diferencias internas declaradas (no observables)
+
+Se dejan explícitas para que la revisión no tenga que descubrirlas:
+1. En `BonoService.evaluar`, la fecha de hoy se toma **una vez** (`hoy`) en lugar de tres llamadas a
+   `LocalDate.now(clock)`. Antes, una compra hecha justo a medianoche podía evaluar suspensión y periodo
+   con fechas distintas; ahora es consistente. Ninguna prueba ni contrato dependía de eso.
+2. En `BonoService.evaluar`, el conteo de prestaciones del periodo se ejecuta al consultar el cupo, es
+   decir, **antes** de las guardas de activación y suspensión (antes se ejecutaba después). Es una
+   consulta de solo lectura dentro de la misma transacción: no cambia resultados, mensajes ni datos; solo
+   agrega una lectura en los caminos que terminan rechazando la compra.
+
+---
 
 ## 6. Verificación
 
-*Se completa en la sesión 2.*
+### 6.1 Estrategia
+
+1. **Línea base** sobre `main` sin cambios: suite completa del backend.
+2. **Pruebas de caracterización** escritas *antes* del refactor y ejecutadas sobre el código original,
+   para fijar los casos de la regla que no estaban cubiertos:
+   - `elRechazoPorAtencionesDisponiblesIndicaCuantasQuedanYHastaCuando`: mensaje **exacto**, incluido
+     el último día del periodo.
+   - `lasAtencionesAnterioresALaAfiliacionSonParticularesYNoConsumenElCupo`.
+   - `conAtencionesIlimitadasTodasSonDelPlanYNuncaSeAvisaCupoAgotado`: 5 atenciones `PLAN` y ningún
+     evento `AtencionesIncluidasAgotadas`.
+3. **Refactor** y nueva ejecución de la suite completa, sin modificar ninguna prueba existente.
+4. **Pruebas unitarias** del componente nuevo (`CupoAtencionesIncluidasTest`): sin versión vigente,
+   ilimitado (no consulta la base), con cupo, última atención y cupo agotado, con un periodo que no
+   empieza el día 1 (afiliación el 20 de enero, fecha 5 de marzo → periodo 20/02–19/03).
+5. **Prueba de mutación** manual: se rompe la regla a propósito para comprobar que las pruebas la
+   protegen de verdad.
+
+Entorno: `docker compose --profile tests run --rm backend-tests` (Maven 3.9.9, Temurin 17,
+PostgreSQL 16-alpine, base `isapet_test` exclusiva de pruebas; cada prueba de integración revierte su
+transacción).
+
+### 6.2 Resultados
+
+| Momento | Código | Pruebas | Fallos | Errores | Resultado | Evidencia |
+|---|---|---|---|---|---|---|
+| Antes (línea base) | `3313321` | 122 | 0 | 0 | BUILD SUCCESS | `evidencias/01-pruebas-antes.txt` |
+| Caracterización sobre código original | `3ff2a71` | 22 (clase F-03..F-06) | 0 | 0 | BUILD SUCCESS | `evidencias/02-caracterizacion-antes.txt` |
+| Después del refactor | `c7cb685` | 130 (= 122 + 3 + 5) | 0 | 0 | BUILD SUCCESS | `evidencias/03-pruebas-despues.txt` |
+| Mutación `usadas < limite` → `usadas <= limite` (no versionada) | `c7cb685` + mutación | 39 | 2 | 5 | BUILD FAILURE (esperado) | `evidencias/04-mutacion-detectada.txt` |
+
+Lectura de la mutación: al permitir "una atención de más", fallan 7 pruebas —entre ellas
+`lasAtencionesSinBonoUsanLasIncluidasYDespuesSonParticulares` (la tercera atención dejaría de ser
+`PARTICULAR`) y `conElCupoAgotadoNoQuedanDisponibles`—, lo que demuestra que la regla extraída está
+protegida tanto por las pruebas de integración como por las unitarias. El archivo se restauró y la
+suite volvió a pasar completa.
+
+### 6.3 Limitaciones
+
+- No se ejecutaron las pruebas del frontend (Karma requiere Chrome y Node 20 en el equipo). No hacen
+  falta para este cambio: el frontend no se modificó y el contrato de la API es idéntico (mismas rutas,
+  cuerpos y mensajes, verificado por las pruebas de integración y MockMvc del backend).
+- No se hizo prueba manual de la interfaz ni pruebas de concurrencia. El bloqueo pesimista sobre
+  `afiliacion` (que serializa compra de bono y registro de atención) **no se tocó**: sigue en
+  `BonoService.comprar`/`comprarEnLinea` y en `PrestacionService.cupoIncluidoDisponible`.
+- `AfiliacionService` y `NotificacionService` siguen con su propia copia del cálculo (fuera del alcance
+  acotado del taller; ver sección 7).
+
+---
 
 ## 7. Cierre
 
-*Se completa en la sesión 2.*
+### 7.1 Lecciones
+
+- **Una regla que decide dinero en dos puntos debe tener un solo dueño.** El código de F-05 estaba bien
+  escrito y bien probado, y aun así la regla central vivía en dos métodos privados; ninguna prueba
+  hubiera fallado si alguien cambiaba solo uno.
+- **Caracterizar antes de mover.** Las pruebas existentes cubrían los casos felices y la mayoría de
+  rechazos, pero no el texto exacto del mensaje ni el caso de atención anterior a la afiliación; fijarlos
+  primero convirtió el refactor en un cambio verificable, no en uno "que parece igual".
+- **No todo hallazgo se arregla refactorizando.** H-03 (secreto por defecto) es más grave que H-01,
+  pero corregirlo cambia el comportamiento de arranque: es una decisión de despliegue del equipo.
+- **La IA acelera el rastreo, no reemplaza la verificación.** Varias afirmaciones candidatas se
+  descartaron o se degradaron a hipótesis al verificarlas (p. ej., H-04 no es un defecto porque la
+  transacción sí se revierte; que `BonoService` no revise `fechaFin` no es un hueco porque
+  `RenovacionPeriodosJob` → `CancelacionPlanService.aplicarCancelacionesCumplidas` elimina la
+  afiliación al día siguiente de `fechaFin`; solo queda la ventana entre medianoche y las 00:05, hora
+  del *job*, como hipótesis menor no probada).
+
+### 7.2 Deuda técnica pendiente
+
+| ID | Deuda | Siguiente paso sugerido |
+|---|---|---|
+| H-01 (resto) | `AfiliacionService.response` (L226-272) y `NotificacionService.recordarFinDePeriodo` (L263-280) aún calculan el cupo por su cuenta | Migrarlos a `CupoAtencionesIncluidas`; en `AfiliacionService` el listado de prestaciones incluidas se sigue necesitando para la respuesta, solo el saldo debería salir del componente |
+| H-02 | Endpoints de bonos y de pago de cuotas repartidos entre `AfiliacionController` y `PagoController` | `BonoController` con las mismas URLs |
+| H-03 | Secreto del webhook con valor por defecto; credencial de desarrollo en `.claude/launch.json` | *Fail-fast* sin `PASARELA_SECRETO` fuera del perfil de pruebas; retirar y rotar la credencial |
+| H-04 | Bono de valor 0 insertado antes de rechazar el pago en línea | Validar antes de persistir y exponerlo en la cotización |
+| H-05 | Validación de pertenencia mascota–afiliado en 3 servicios | Método de dominio o búsqueda única |
+| — | `fix_backend.py` y `refactor_backend.py` en la raíz: migración hexagonal no aplicada, con rutas absolutas de un equipo | Decidir como equipo si la arquitectura objetivo es hexagonal (y documentarla en un ADR) o eliminar los scripts |
+
+### 7.3 Vínculo con el proceso de desarrollo
+
+**Pregunta de cierre: ¿qué práctica habría detectado estos problemas antes de entregar?**
+
+1. **Revisión de código con lista de verificación en cada *pull request*.** El historial muestra
+   integraciones grandes (p. ej., `3313321` "pagos, notificaciones, ciclo de vida del plan, inicio y
+   mejoras de usabilidad" y `90c5569` "implementar F-03 a F-06") y un solo *pull request* registrado (#1). Un PR por
+   funcionalidad, revisado con la lista de la sección 3 del taller ("¿hay duplicación?", "¿dónde se
+   aplican las invariantes?"), habría señalado H-01 al aparecer la segunda copia del cálculo de cupo, y
+   H-03 al ver un secreto con valor por defecto.
+2. **Registrar la arquitectura y las decisiones (ADR).** Sin un documento de capas, nadie podía
+   contrastar la implementación; tampoco quedó registrado si la migración hexagonal de los scripts se
+   abandonó o sigue pendiente.
+3. **Análisis estático en CI** (p. ej., detección de duplicados y de secretos en el pipeline) habría
+   marcado H-01/H-05 y H-03 automáticamente.
+4. **Definición de "terminado" que incluya refactorizar** (ciclo rojo-verde-refactor de TDD): las
+   pruebas ya existían; faltó el paso de refactorizar una vez en verde.
+
+---
 
 ## 8. Git
 
-*Se completa en la sesión 2.*
+Rama de trabajo: `taller-refactorizacion` (desde `main` @ `3313321`).
+
+| # | Commit | Mensaje | Contenido |
+|---|---|---|---|
+| 1 | [`da6ce83`](https://github.com/hpadillas/isapet/commit/da6ce83) | `docs: registrar diagnostico tecnico` | Secciones 1–4 del informe + `evidencias/01-pruebas-antes.txt` |
+| 2 | [`3ff2a71`](https://github.com/hpadillas/isapet/commit/3ff2a71) | `test: caracterizar la regla de cupo antes de refactorizar` | 3 pruebas de caracterización + `evidencias/02-caracterizacion-antes.txt` |
+| 3 | [`c7cb685`](https://github.com/hpadillas/isapet/commit/c7cb685) | `refactor: separar responsabilidades de compra de bonos` | `CupoAtencionesIncluidas`, `UsoAtencionesIncluidas`, cambios en `BonoService` y `PrestacionService`, prueba unitaria |
+| 4 | *(este commit)* | `docs: documentar verificacion de refactorizacion` | Secciones 5–8 + `evidencias/03`, `04`, `05` |
+
+Los enlaces funcionan una vez la rama se publique en el repositorio remoto.
+
+**Cómo reproducir la verificación** (desde la raíz, con Docker Desktop iniciado y un `.env` creado a
+partir de `.env.example`):
+
+```powershell
+docker compose --profile tests run --rm backend-tests
+```
