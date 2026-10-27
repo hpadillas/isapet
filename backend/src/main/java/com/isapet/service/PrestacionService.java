@@ -41,7 +41,7 @@ public class PrestacionService {
     private final BonoRepository bonoRepository;
     private final PrestacionRepository prestacionRepository;
     private final CuotaPlanRepository cuotaRepository;
-    private final BeneficiosPlanResolver beneficiosResolver;
+    private final CupoAtencionesIncluidas cupoAtenciones;
     private final BonoPrestacionMapper mapper;
     private final ApplicationEventPublisher eventos;
     private final Clock clock;
@@ -54,7 +54,7 @@ public class PrestacionService {
             BonoRepository bonoRepository,
             PrestacionRepository prestacionRepository,
             CuotaPlanRepository cuotaRepository,
-            BeneficiosPlanResolver beneficiosResolver,
+            CupoAtencionesIncluidas cupoAtenciones,
             BonoPrestacionMapper mapper,
             ApplicationEventPublisher eventos,
             Clock clock) {
@@ -65,7 +65,7 @@ public class PrestacionService {
         this.bonoRepository = bonoRepository;
         this.prestacionRepository = prestacionRepository;
         this.cuotaRepository = cuotaRepository;
-        this.beneficiosResolver = beneficiosResolver;
+        this.cupoAtenciones = cupoAtenciones;
         this.mapper = mapper;
         this.eventos = eventos;
         this.clock = clock;
@@ -139,15 +139,9 @@ public class PrestacionService {
                 || cuotaRepository.planSuspendido(afiliadoId, fecha)) {
             return Optional.empty();
         }
-        PeriodoAfiliacion periodo = PeriodoAfiliacion.queContiene(afiliacion.getFechaInicio(), fecha);
-        return beneficiosResolver.versionVigente(afiliacion.getPlan().getId(), fecha).flatMap(version -> {
-            Integer limite = version.getLimiteAtenciones();
-            if (limite == null) {
-                return Optional.of(new CupoIncluido(periodo, false));
-            }
-            long usadas = prestacionRepository.contarIncluidasEnPlan(afiliadoId, periodo.desde(), periodo.hastaExclusiva());
-            return usadas < limite ? Optional.of(new CupoIncluido(periodo, usadas + 1 == limite)) : Optional.empty();
-        });
+        return cupoAtenciones.consultar(afiliacion, fecha)
+                .filter(UsoAtencionesIncluidas::quedanDisponibles)
+                .map(uso -> new CupoIncluido(uso.periodo(), uso.siguienteEsLaUltima()));
     }
 
     private record CupoIncluido(PeriodoAfiliacion periodo, boolean esElUltimo) {
