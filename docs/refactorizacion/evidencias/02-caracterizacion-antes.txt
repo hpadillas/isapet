@@ -1,0 +1,7 @@
+# Pruebas de caracterización sobre el código ORIGINAL (antes de refactorizar)
+# Comando: docker compose --profile tests run --rm backend-tests mvn -B test -Dtest=AfiliacionBonosPrestacionesIntegrationTest
+# 19 pruebas existentes + 3 nuevas de caracterización
+
+[INFO] Tests run: 22, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 39.85 s -- in com.isapet.integration.AfiliacionBonosPrestacionesIntegrationTest
+[INFO] Tests run: 22, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS

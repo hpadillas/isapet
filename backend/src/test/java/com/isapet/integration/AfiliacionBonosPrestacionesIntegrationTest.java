@@ -255,7 +255,53 @@ class AfiliacionBonosPrestacionesIntegrationTest {
         assertThat(error.getMessage()).contains("ilimitadas");
     }
 
+    @Test
+    void elRechazoPorAtencionesDisponiblesIndicaCuantasQuedanYHastaCuando() {
+        asignarYActivar(afiliado.getId(), new AsignarPlanRequest(
+                plan("BASICO").getId(), List.of(rocky.getId())));
+        agotarAtencionesIncluidas(rocky, 1);
+
+        BusinessRuleException error = assertThrows(BusinessRuleException.class, () ->
+                bonoService.cotizar(afiliado.getId(), rocky.getId(), servicio("CONSULTA_GENERAL").getId()));
+
+        assertThat(error.getMessage()).isEqualTo(
+                "Al afiliado le quedan 1 de 2 atenciones incluidas en su plan en el periodo actual (hasta el %s); "
+                        .formatted(LocalDate.now().plusMonths(1).minusDays(1))
+                        + "los bonos se compran cuando se agoten.");
+    }
+
     // F-06 ---------------------------------------------------------------
+
+    @Test
+    void lasAtencionesAnterioresALaAfiliacionSonParticularesYNoConsumenElCupo() {
+        asignarYActivar(afiliado.getId(), new AsignarPlanRequest(
+                plan("BASICO").getId(), List.of(rocky.getId())));
+
+        String cobertura = prestacionService.registrar(afiliado.getId(), new RegistrarPrestacionRequest(
+                rocky.getId(), servicio("CONSULTA_GENERAL").getId(), LocalDate.now().minusDays(1), "VetCasa", null, null))
+                .cobertura();
+
+        assertThat(cobertura).isEqualTo("PARTICULAR");
+        BusinessRuleException error = assertThrows(BusinessRuleException.class, () ->
+                bonoService.cotizar(afiliado.getId(), rocky.getId(), servicio("CONSULTA_GENERAL").getId()));
+        assertThat(error.getMessage()).contains("quedan 2 de 2");
+    }
+
+    @Test
+    void conAtencionesIlimitadasTodasSonDelPlanYNuncaSeAvisaCupoAgotado() {
+        asignarYActivar(afiliado.getId(), new AsignarPlanRequest(
+                plan("PREMIUM").getId(), List.of(rocky.getId())));
+        Long consulta = servicio("CONSULTA_GENERAL").getId();
+
+        List<String> coberturas = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            coberturas.add(prestacionService.registrar(afiliado.getId(), new RegistrarPrestacionRequest(
+                    rocky.getId(), consulta, LocalDate.now(), "VetCasa", null, null)).cobertura());
+        }
+
+        assertThat(coberturas).containsOnly("PLAN").hasSize(5);
+        assertThat(eventos.stream(EventoAfiliado.AtencionesIncluidasAgotadas.class)).isEmpty();
+    }
 
     @Test
     void lasAtencionesSinBonoUsanLasIncluidasYDespuesSonParticulares() {

@@ -1,0 +1,18 @@
+# Prueba de mutación (control de calidad de las pruebas; NO se versionó el cambio)
+# Mutación aplicada temporalmente en UsoAtencionesIncluidas.quedanDisponibles():
+#   usadas < limite   -->   usadas <= limite      (se vendería/cubriría una atención de más)
+# Comando: mvn -B test -Dtest='AfiliacionBonosPrestacionesIntegrationTest,CupoAtencionesIncluidasTest,CancelacionYSuspensionIntegrationTest'
+# Resultado esperado: las pruebas deben FALLAR (la mutación es detectada). Luego se restauró el archivo.
+
+[ERROR] Tests run: 22, Failures: 1, Errors: 5, Skipped: 0, Time elapsed: 38.81 s <<< FAILURE! -- in com.isapet.integration.AfiliacionBonosPrestacionesIntegrationTest
+[ERROR] com.isapet.integration.AfiliacionBonosPrestacionesIntegrationTest.lasAtencionesSinBonoUsanLasIncluidasYDespuesSonParticulares -- Time elapsed: 0.207 s <<< FAILURE!
+[ERROR] com.isapet.integration.AfiliacionBonosPrestacionesIntegrationTest.elPlanMuestraLasAtencionesIncluidasYLosBonosDelPeriodo -- Time elapsed: 0.085 s <<< ERROR!
+[ERROR] com.isapet.integration.AfiliacionBonosPrestacionesIntegrationTest.noVendeBonosMientrasQuedenAtencionesIncluidas -- Time elapsed: 0.096 s <<< ERROR!
+[ERROR] com.isapet.integration.AfiliacionBonosPrestacionesIntegrationTest.registrarPrestacionConBonoLoMarcaComoUsadoYApareceEnElHistorial -- Time elapsed: 0.080 s <<< ERROR!
+[ERROR] com.isapet.integration.AfiliacionBonosPrestacionesIntegrationTest.noAceptaUnBonoDeOtroServicioOMascota -- Time elapsed: 0.081 s <<< ERROR!
+[ERROR] com.isapet.integration.AfiliacionBonosPrestacionesIntegrationTest.comprarBonoAplicaElDescuentoDelPlanCuandoSeAgotanLasIncluidas -- Time elapsed: 0.059 s <<< ERROR!
+[INFO] Tests run: 12, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 7.271 s -- in com.isapet.integration.CancelacionYSuspensionIntegrationTest
+[ERROR] Tests run: 5, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 1.726 s <<< FAILURE! -- in com.isapet.service.CupoAtencionesIncluidasTest
+[ERROR] com.isapet.service.CupoAtencionesIncluidasTest.conElCupoAgotadoNoQuedanDisponibles -- Time elapsed: 0.039 s <<< FAILURE!
+[ERROR] Tests run: 39, Failures: 2, Errors: 5, Skipped: 0
+[INFO] BUILD FAILURE

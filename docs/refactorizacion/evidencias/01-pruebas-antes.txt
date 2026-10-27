@@ -1,0 +1,25 @@
+# Línea base ANTES de la refactorización
+# Rama: taller-refactorizacion, sobre el commit 3313321 (main)
+# Comando: docker compose --profile tests run --rm backend-tests   (mvn -B test, PostgreSQL 16, Java 17)
+# Fecha: 2026-10-26
+
+[INFO] Tests run: 20, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 15.61 s -- in com.isapet.controller.AfiliadoControllerTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.514 s -- in com.isapet.dto.AfiliadoContactValidationTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.175 s -- in com.isapet.dto.CamposDePalabrasYNumerosValidationTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.037 s -- in com.isapet.entity.TarifaBonoTest
+[INFO] Tests run: 19, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 28.22 s -- in com.isapet.integration.AfiliacionBonosPrestacionesIntegrationTest
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.853 s -- in com.isapet.integration.CambioPlanPagosYEliminacionIntegrationTest
+[INFO] Tests run: 12, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 6.934 s -- in com.isapet.integration.CancelacionYSuspensionIntegrationTest
+[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.242 s -- in com.isapet.integration.EdicionPlanIntegrationTest
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.620 s -- in com.isapet.integration.LibroPagosYPasarelaIntegrationTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.223 s -- in com.isapet.integration.ListadoAfiliadosIntegrationTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 6.148 s -- in com.isapet.integration.NotificacionIntegrationTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.110 s -- in com.isapet.integration.ResumenInicioIntegrationTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.155 s -- in com.isapet.integration.TratamientoDatosIntegrationTest
+[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 4.304 s -- in com.isapet.repository.PersistenciaF01Test
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.570 s -- in com.isapet.service.AfiliadoServiceTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.466 s -- in com.isapet.service.AfiliadoSinMascotaTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.159 s -- in com.isapet.service.MascotaServiceTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s -- in com.isapet.service.PeriodoAfiliacionTest
+[INFO] Tests run: 122, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS
