@@ -611,3 +611,87 @@ partir de `.env.example`):
 ```powershell
 docker compose --profile tests run --rm backend-tests
 ```
+
+---
+
+## 9. Preguntas de sustentación (refactorización H-01)
+
+### 9.1 ¿Cuál era el problema identificado y dónde estaba localizado?
+
+La regla del **cupo de atenciones incluidas del plan** (cuántas atenciones cubre el plan en el periodo y
+cuántas quedan) estaba **escrita dos veces** dentro de la compra de bonos (F-05):
+
+- `BonoService.evaluar` (L164-188): decide si se puede vender un bono.
+- `PrestacionService.cupoIncluidoDisponible` (L142-150): decide si una atención la paga el plan o es
+  particular.
+
+Ambas copias repetían a mano los mismos cuatro pasos: periodo vigente → versión del plan → límite de
+atenciones → conteo de las ya usadas. Existían además otras dos copias en `AfiliacionService` y
+`NotificacionService`, que quedaron como deuda técnica pendiente (§7.2).
+
+**Riesgo:** las dos copias **deciden dinero**. Si se modificaba una y no la otra, el sistema podía venderle
+un bono a un afiliado que aún tenía cupo, o cobrar como particular una atención que el plan cubría.
+
+### 9.2 ¿Qué principio de diseño o atributo de calidad estaba comprometido?
+
+- **DRY / única fuente de verdad:** una misma regla de negocio vivía en varios lugares.
+- **SRP (una sola razón de cambio):** la regla del cupo cambia por decisiones comerciales, pero modificarla
+  obligaba a tocar servicios que cambian por otras razones (vender bonos, registrar atenciones).
+- **Cohesión y acoplamiento:** `BonoService` dependía de `PrestacionRepository` solo para contar
+  atenciones, un detalle de persistencia de otro módulo.
+- **Atributo de calidad afectado:** **mantenibilidad**, en particular la modificabilidad y la modularidad.
+
+### 9.3 ¿Qué modificación realizaron y cómo cambiaron las responsabilidades o dependencias?
+
+Se aplicó la refactorización ***Extract Class***, creando dos clases:
+
+- **`CupoAtencionesIncluidas`** (`@Component`): **calcula** el cupo — periodo que contiene la fecha, versión
+  vigente, límite y atenciones usadas.
+- **`UsoAtencionesIncluidas`** (*record* inmutable): **interpreta** el resultado con métodos expresivos:
+  `ilimitadas()`, `quedanDisponibles()`, `restantes()`, `siguienteEsLaUltima()`. Antes esa semántica estaba
+  implícita en `limite == null`, `usadas < limite` y `usadas + 1 == limite`.
+
+| | Antes | Después |
+|---|---|---|
+| `BonoService` | Calculaba el cupo; dependía de `PrestacionRepository` y `VersionPlan` | Solo consulta el cupo y decide si vende; ya no depende de `PrestacionRepository` |
+| `PrestacionService` | Calculaba el cupo; dependía de `BeneficiosPlanResolver` | Solo consulta el cupo y decide si la atención es del plan o particular |
+| Regla del cupo | Duplicada | Vive únicamente en `CupoAtencionesIncluidas` |
+
+Cada servicio conserva su **reacción propia**: la venta rechaza la compra con su mensaje de error; la
+atención pasa a cobertura particular y publica el aviso de cupo agotado.
+
+### 9.4 ¿Qué consecuencias tiene el cambio sobre la arquitectura de la aplicación?
+
+- **Se respeta la arquitectura en capas** (controlador → servicio → repositorio): no cambiaron URLs,
+  mensajes ni códigos HTTP, y el frontend no se modificó.
+- **La regla de dominio tiene un único dueño:** la venta de bonos y el registro de atenciones ya no pueden
+  contradecirse.
+- **Menor acoplamiento:** el acceso a las prestaciones queda encapsulado en el componente de cupo, en lugar
+  de que `BonoService` conozca ese repositorio.
+- **Mejor capacidad de prueba:** la regla se prueba de forma aislada con pruebas unitarias, sin base de datos.
+- **Facilita la evolución:** si el negocio redefine el periodo o qué cuenta como atención incluida, se
+  modifica una sola clase.
+- **Límite declarado:** `AfiliacionService` y `NotificacionService` aún conservan su propia copia; el
+  siguiente paso es migrarlos al mismo componente.
+
+### 9.5 ¿Qué evidencias demuestran que la funcionalidad conserva su comportamiento?
+
+| Momento | Commit | Pruebas | Resultado | Evidencia |
+|---|---|---|---|---|
+| Línea base (código original) | `3313321` | 122 | 0 fallos · BUILD SUCCESS | `evidencias/01-pruebas-antes.txt` |
+| Caracterización sobre código original | `3ff2a71` | 22 (clase F-03..F-06) | 0 fallos · BUILD SUCCESS | `evidencias/02-caracterizacion-antes.txt` |
+| Después del refactor | `c7cb685` | 130 (122 + 3 + 5) | 0 fallos · BUILD SUCCESS | `evidencias/03-pruebas-despues.txt` |
+| Mutación `<` → `<=` | `c7cb685` + mutación | 39 | 7 fallan (esperado) | `evidencias/04-mutacion-detectada.txt` |
+
+1. **Línea base:** las 122 pruebas pasan sobre el código original.
+2. **Pruebas de caracterización escritas antes de refactorizar:** fijan casos no cubiertos — el mensaje
+   exacto de rechazo con la fecha de fin del periodo, las atenciones anteriores a la afiliación y el plan
+   ilimitado sin aviso de cupo agotado.
+3. **Después del refactor pasan las 130 pruebas**, sin modificar ninguna prueba existente.
+4. **Prueba de mutación:** al romper la regla a propósito fallan 7 pruebas, lo que demuestra que las
+   pruebas realmente la protegen.
+5. **Trazabilidad en Git:** diagnóstico `da6ce83` → caracterización `3ff2a71` → refactor `c7cb685` →
+   verificación `15b6987`; diff completo en `evidencias/05-diff-refactorizacion.diff`.
+
+Las pruebas de integración se ejecutan contra PostgreSQL real, en una base exclusiva de pruebas:
+`docker compose --profile tests run --rm backend-tests`.
