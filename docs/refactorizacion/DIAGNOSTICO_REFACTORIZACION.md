@@ -293,7 +293,8 @@ pero el riesgo se materializa al conectar una real.
 
 Observación relacionada: `.claude/launch.json` (versionado) contiene una contraseña de
 *bootstrap* del administrador para desarrollo local. No se reproduce aquí; se recomienda retirarla del
-repositorio y rotarla.
+repositorio y rotarla. *Actualización:* el archivo ya la lee de `.env` en lugar de tenerla escrita; la
+rotación queda a cargo del dueño de la credencial, porque el valor anterior sigue en el historial de Git.
 
 **Acción propuesta.** Eliminar los valores por defecto del secreto y fallar al arrancar si falta (salvo
 en el perfil de pruebas); retirar credenciales de `launch.json`. Nota: esto **cambia el comportamiento
@@ -565,7 +566,7 @@ suite volvió a pasar completa.
 |---|---|---|
 | H-01 (resto) | `AfiliacionService.response` (L226-272) y `NotificacionService.recordarFinDePeriodo` (L263-280) aún calculan el cupo por su cuenta | Migrarlos a `CupoAtencionesIncluidas`; en `AfiliacionService` el listado de prestaciones incluidas se sigue necesitando para la respuesta, solo el saldo debería salir del componente |
 | H-02 | Endpoints de bonos y de pago de cuotas repartidos entre `AfiliacionController` y `PagoController` | `BonoController` con las mismas URLs |
-| H-03 | Secreto del webhook con valor por defecto; credencial de desarrollo en `.claude/launch.json` | *Fail-fast* sin `PASARELA_SECRETO` fuera del perfil de pruebas; retirar y rotar la credencial |
+| H-03 | Secreto del webhook con valor por defecto; credencial de desarrollo que estuvo en `.claude/launch.json` (ya retirada del archivo, sigue en el historial) | *Fail-fast* sin `PASARELA_SECRETO` fuera del perfil de pruebas; rotar la credencial |
 | H-04 | Bono de valor 0 insertado antes de rechazar el pago en línea | Validar antes de persistir y exponerlo en la cotización |
 | H-05 | Validación de pertenencia mascota–afiliado en 3 servicios | Método de dominio o búsqueda única |
 | — | `fix_backend.py` y `refactor_backend.py` en la raíz: migración hexagonal no aplicada, con rutas absolutas de un equipo | Decidir como equipo si la arquitectura objetivo es hexagonal (y documentarla en un ADR) o eliminar los scripts |
@@ -599,9 +600,10 @@ Rama de trabajo: `taller-refactorizacion` (desde `main` @ `3313321`).
 | 1 | [`da6ce83`](https://github.com/hpadillas/isapet/commit/da6ce83) | `docs: registrar diagnostico tecnico` | Secciones 1–4 del informe + `evidencias/01-pruebas-antes.txt` |
 | 2 | [`3ff2a71`](https://github.com/hpadillas/isapet/commit/3ff2a71) | `test: caracterizar la regla de cupo antes de refactorizar` | 3 pruebas de caracterización + `evidencias/02-caracterizacion-antes.txt` |
 | 3 | [`c7cb685`](https://github.com/hpadillas/isapet/commit/c7cb685) | `refactor: separar responsabilidades de compra de bonos` | `CupoAtencionesIncluidas`, `UsoAtencionesIncluidas`, cambios en `BonoService` y `PrestacionService`, prueba unitaria |
-| 4 | *(este commit)* | `docs: documentar verificacion de refactorizacion` | Secciones 5–8 + `evidencias/03`, `04`, `05` |
+| 4 | [`15b6987`](https://github.com/hpadillas/isapet/commit/15b6987) | `docs: documentar verificacion de refactorizacion` | Secciones 5–8 + `evidencias/03`, `04`, `05` |
 
-Los enlaces funcionan una vez la rama se publique en el repositorio remoto.
+La rama se integró a `main` con el *pull request*
+[#2](https://github.com/hpadillas/isapet/pull/2) (merge `47ee84a`).
 
 **Cómo reproducir la verificación** (desde la raíz, con Docker Desktop iniciado y un `.env` creado a
 partir de `.env.example`):
